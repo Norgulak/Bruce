@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BRUCE MINI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Courier+Prime:wght@400;700&display=swap');
+
+  :root {
+    --sand: #D7C49E;
+    --sand-dim: #7a6e58;
+    --teal: #078282;
+    --teal-bright: #0bbfbf;
+    --teal-dim: #034444;
+    --bg: rgba(30, 28, 46, 0.92);
+    --border: rgba(7, 130, 130, 0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: transparent;
+    width: 220px;
+    height: auto;
+    overflow: hidden;
+    font-family: 'Courier Prime', monospace;
+  }
+
+  .mini-container {
+    width: 220px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--teal);
+    padding: 10px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Top glow line */
+  .mini-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, var(--teal), transparent);
+  }
+
+  /* Scanlines */
+  .mini-container::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px);
+    pointer-events: none;
+  }
+
+  /* Header */
+  .mini-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(7,130,130,0.2);
+  }
+
+  .mini-title {
+    font-family: 'Black Ops One', monospace;
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--sand);
+    text-shadow: 0 0 8px rgba(215,196,158,0.3);
+  }
+
+  .mini-title span { color: var(--teal); }
+
+  .status-badge {
+    font-family: 'Black Ops One', monospace;
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--teal);
+    padding: 2px 6px;
+    border: 1px solid var(--teal-dim);
+  }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .stat-block {
+    background: rgba(7,130,130,0.08);
+    border: 1px solid rgba(7,130,130,0.15);
+    padding: 4px 6px;
+    text-align: center;
+  }
+
+  .stat-block-label {
+    font-family: 'Black Ops One', monospace;
+    font-size: 7px;
+    letter-spacing: 2px;
+    color: var(--teal);
+    display: block;
+  }
+
+  .stat-block-value {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sand);
+    display: block;
+    margin-top: 1px;
+  }
+
+  .stat-mini-bar {
+    width: 100%;
+    height: 2px;
+    background: var(--teal-dim);
+    margin-top: 3px;
+  }
+
+  .stat-mini-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal), var(--teal-bright));
+    box-shadow: 0 0 4px var(--teal);
+    width: 0%;
+    transition: width 0.8s ease;
+  }
+
+  /* Oscilloscope */
+  #miniOsc {
+    width: 100%;
+    height: 50px;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  /* Last message */
+  .mini-msg {
+    font-size: 9px;
+    color: var(--teal);
+    line-height: 1.4;
+    min-height: 24px;
+    font-family: 'Courier Prime', monospace;
+    border-top: 1px solid rgba(7,130,130,0.15);
+    padding-top: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  .mini-msg::before {
+    content: 'BRUCE: ';
+    color: var(--sand-dim);
+    font-family: 'Black Ops One', monospace;
+    font-size: 7px;
+    letter-spacing: 2px;
+  }
+
+  /* Conn dot */
+  .conn-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 5px var(--teal);
+    display: inline-block;
+    margin-right: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="mini-container" id="miniContainer">
+  <div class="mini-header">
+    <div class="mini-title">B<span>//</span>SYS</div>
+    <div style="display:flex;align-items:center">
+      <span class="conn-dot" id="connDot"></span>
+      <div class="status-badge" id="statusBadge">IDLE</div>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-block">
+      <span class="stat-block-label">CPU</span>
+      <span class="stat-block-value" id="cpuVal">0%</span>
+      <div class="stat-mini-bar"><div class="stat-mini-fill" id="cpuBar"></div></div>
+    </div>
+    <div class="stat-block">
+      <span class="stat-block-label">GPU</span>
+      <span class="stat-block-value" id="gpuVal">0%</span>
+      <div class="stat-mini-bar"><div class="stat-mini-fill" id="gpuBar"></div></div>
+    </div>
+    <div class="stat-block">
+      <span class="stat-block-label">RAM</span>
+      <span class="stat-block-value" id="ramVal">0%</span>
+      <div class="stat-mini-bar"><div class="stat-mini-fill" id="ramBar"></div></div>
+    </div>
+  </div>
+
+  <canvas id="miniOsc"></canvas>
+
+  <div class="mini-msg" id="miniMsg">Awaiting input_</div>
+</div>
+
+<script>
+// ── OSCILLOSCOPE ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('miniOsc');
+const ctx = canvas.getContext('2d');
+canvas.width = 198;
+canvas.height = 50;
+
+let oscPhase = 0, oscAmp = 0, oscTarget = 0;
+
+function drawOsc() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  oscAmp += (oscTarget - oscAmp) * 0.05;
+
+  if (oscAmp < 0.5) {
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(7,130,130,0.2)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(0, H/2); ctx.lineTo(W, H/2);
+    ctx.stroke();
+  } else {
+    for (let l = 0; l < 4; l++) {
+      const t = l/4, alpha = 0.15 + t*0.85, yOff = (l-2)*3, scaleY = 0.5+t*0.5;
+      ctx.beginPath();
+      ctx.strokeStyle = l===3 ? `rgba(11,191,191,${alpha})` : `rgba(7,130,130,${alpha*0.4})`;
+      ctx.lineWidth = l===3 ? 1.8 : 0.6;
+      ctx.shadowBlur = l===3 ? 8 : 0;
+      ctx.shadowColor = '#0bbfbf';
+      for (let x = 0; x <= W; x++) {
+        const p = x/W;
+        const y = H/2 + yOff + (
+          Math.sin(p*Math.PI*8+oscPhase)*oscAmp*0.5 +
+          Math.sin(p*Math.PI*3.3+oscPhase*1.4)*oscAmp*0.3 +
+          Math.sin(p*Math.PI*14+oscPhase*2.1)*oscAmp*0.1
+        )*scaleY;
+        x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+  oscPhase += 0.07;
+  requestAnimationFrame(drawOsc);
+}
+drawOsc();
+
+function setOscActive(on) { oscTarget = on ? 14 : 0; }
+
+// ── STATUS ───────────────────────────────────────────────────────────────────
+const STATUS_COLORS = {
+  idle: '#7a6e58', listening: '#00ff88', processing: '#0bbfbf', speaking: '#D7C49E'
+};
+
+function setStatus(state) {
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = state.toUpperCase();
+  badge.style.color = STATUS_COLORS[state] || '#078282';
+  badge.style.borderColor = STATUS_COLORS[state] || '#034444';
+  setOscActive(state === 'speaking');
+  anime({ targets: badge, scale:[1.1,1], duration:200, easing:'easeOutBack' });
+}
+
+// ── WEBSOCKET ────────────────────────────────────────────────────────────────
+let ws = null;
+
+function connectWS() {
+  ws = new WebSocket('ws://localhost:8765');
+  ws.onopen = () => {
+    document.getElementById('connDot').style.cssText = 'width:5px;height:5px;border-radius:50%;background:#0bbfbf;box-shadow:0 0 6px #078282;display:inline-block;margin-right:4px;';
+  };
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'status') setStatus(data.value);
+    if (data.type === 'bruce_text') {
+      const msg = document.getElementById('miniMsg');
+      msg.textContent = data.value.slice(0, 80) + (data.value.length > 80 ? '...' : '');
+      anime({ targets: msg, opacity:[0,1], duration:300, easing:'easeOutCubic' });
+    }
+    if (data.type === 'overlay_mode') {
+      if (data.value === 'full') {
+        document.body.style.display = 'none';
+      } else if (data.value === 'mini') {
+        document.body.style.display = 'block';
+      }
+    }
+    if (data.type === 'stats') {
+      ['cpu','gpu','ram'].forEach(k => {
+        document.getElementById(k+'Val').textContent = data[k]+'%';
+        document.getElementById(k+'Bar').style.width = data[k]+'%';
+      });
+    }
+  };
+  ws.onclose = () => {
+    document.getElementById('connDot').style.background = '#8B4444';
+    setTimeout(connectWS, 3000);
+  };
+}
+connectWS();
+
+// Stats HTTP fallback
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) return;
+  fetch('http://localhost:8766/stats').then(r=>r.json()).then(d => {
+    ['cpu','gpu','ram'].forEach(k => {
+      document.getElementById(k+'Val').textContent = d[k]+'%';
+      document.getElementById(k+'Bar').style.width = d[k]+'%';
+    });
+  }).catch(()=>{});
+}, 2000);
+
+// ── CONN DOT PULSE ───────────────────────────────────────────────────────────
+anime({ targets:'#connDot', opacity:[1,0.2], duration:1500, loop:true, direction:'alternate', easing:'easeInOutSine' });
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+anime({ targets:'#miniContainer', opacity:[0,1], translateX:[-20,0], duration:500, easing:'easeOutCubic' });
+</script>
+</body>
+</html>

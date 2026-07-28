@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BRUCE // SYSTEM HUD</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Black+Ops+One&family=Courier+Prime:wght@400;700&display=swap');
+
+  :root {
+    --sand: #D7C49E;
+    --sand-dim: #7a6e58;
+    --teal: #078282;
+    --teal-bright: #0bbfbf;
+    --teal-dim: #034444;
+    --bg: #343248;
+    --panel-bg: rgba(30, 28, 46, 0.93);
+    --border: rgba(7, 130, 130, 0.4);
+    --text-dim: rgba(215, 196, 158, 0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--sand);
+    font-family: 'Rajdhani', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    pointer-events: none; z-index: 1000;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none; z-index: 999;
+  }
+
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: grid;
+    grid-template-columns: 220px 1fr 320px;
+    grid-template-rows: 50px 1fr 80px;
+    gap: 6px;
+    padding: 10px;
+    z-index: 10;
+  }
+
+  /* TOP BAR */
+  .top-bar {
+    grid-column: 1/-1;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+
+  .title {
+    font-family: 'Black Ops One', monospace;
+    font-size: 18px; color: var(--sand); letter-spacing: 8px;
+    text-shadow: 0 0 14px rgba(215,196,158,0.25);
+  }
+  .title span { color: var(--teal); text-shadow: 0 0 14px var(--teal); }
+
+  .top-center { display: flex; align-items: center; gap: 12px; }
+
+  .conn { display: flex; align-items: center; gap: 5px; font-family: 'Black Ops One', monospace; font-size: 9px; color: var(--teal); letter-spacing: 2px; }
+  .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+
+  .hud-btn { background: transparent; border: 1px solid var(--border); color: var(--teal); font-family: 'Black Ops One', monospace; font-size: 8px; letter-spacing: 2px; padding: 3px 8px; cursor: pointer; }
+  .hud-btn:hover { background: var(--teal-dim); color: var(--sand); }
+
+  .clock { font-family: 'Courier Prime', monospace; font-size: 11px; color: var(--sand-dim); letter-spacing: 2px; }
+
+  /* PANELS */
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    padding: 10px; position: relative; overflow: hidden;
+  }
+  .panel::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4;
+  }
+
+  .plabel {
+    font-family: 'Black Ops One', monospace;
+    font-size: 8px; letter-spacing: 4px; color: var(--teal);
+    text-transform: uppercase; margin-bottom: 8px;
+  }
+
+  /* LEFT PANEL */
+  .left {
+    grid-row: 2;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+
+  /* Progress bar section */
+  .wake-progress-section {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    padding: 8px; position: relative; overflow: hidden; flex-shrink: 0;
+  }
+  .wake-progress-section::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4;
+  }
+  .wake-label {
+    font-family: 'Black Ops One', monospace;
+    font-size: 8px; letter-spacing: 3px; color: var(--teal); margin-bottom: 5px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .wake-label span { color: var(--sand); }
+  .wake-bar-bg {
+    width: 100%; height: 6px; background: var(--teal-dim); border-radius: 3px; overflow: hidden;
+  }
+  .wake-bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--teal), var(--teal-bright));
+    box-shadow: 0 0 8px var(--teal);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  .wake-status {
+    font-family: 'Courier Prime', monospace;
+    font-size: 8px; color: var(--sand-dim); margin-top: 4px; letter-spacing: 1px;
+  }
+
+  /* Stats section */
+  .stats-section {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    padding: 10px; position: relative; overflow: hidden; flex-shrink: 0;
+  }
+  .stats-section::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4;
+  }
+
+  .stat-block { margin-bottom: 6px; }
+  .stat-head { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .stat-name { font-family: 'Black Ops One', monospace; font-size: 8px; letter-spacing: 3px; color: var(--teal); }
+  .stat-val { font-family: 'Courier Prime', monospace; font-size: 10px; color: var(--sand); }
+  .stat-bar { width: 100%; height: 3px; background: var(--teal-dim); }
+  .stat-fill { height: 100%; background: linear-gradient(90deg, var(--teal), var(--teal-bright)); box-shadow: 0 0 5px var(--teal); width: 0%; transition: width 0.8s ease; }
+
+  .info-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(7,130,130,0.1); font-size: 10px; }
+  .info-k { font-family: 'Black Ops One', monospace; font-size: 7px; color: var(--teal); letter-spacing: 2px; }
+  .info-v { font-family: 'Courier Prime', monospace; font-size: 9px; color: var(--sand); }
+
+  /* Small CMD log */
+  .cmd-small {
+    background: rgba(10,8,20,0.85);
+    border: 1px solid var(--teal-dim);
+    padding: 8px; flex: 1; overflow: hidden; position: relative; min-height: 80px;
+  }
+  .cmd-small::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal-bright), transparent); opacity: 0.3;
+  }
+  .cmd-small-head {
+    font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 2px;
+    color: var(--teal-dim); margin-bottom: 5px; border-bottom: 1px solid rgba(7,130,130,0.1); padding-bottom: 4px;
+  }
+  .cmd-small-out {
+    height: calc(100% - 22px); overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--teal-dim) transparent;
+  }
+  .cmd-small-out::-webkit-scrollbar { width: 2px; }
+  .cmd-small-out::-webkit-scrollbar-thumb { background: var(--teal-dim); }
+  .cmd-line { font-family: 'Courier Prime', monospace; font-size: 9px; line-height: 1.6; color: var(--teal); opacity: 0; }
+  .cmd-line.u { color: var(--sand); }
+  .cmd-line.b { color: var(--teal-bright); }
+  .cmd-line.s { color: var(--sand-dim); }
+  .cursor { display: inline-block; width: 6px; height: 10px; background: var(--teal); vertical-align: middle; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* CENTER — MISSION CONTROL */
+  .center {
+    grid-row: 2;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+
+  .mission-panel { flex: 0 0 auto; }
+
+  .mission-objective {
+    font-family: 'Black Ops One', monospace;
+    font-size: 13px; color: var(--sand); letter-spacing: 3px;
+    text-shadow: 0 0 10px rgba(215,196,158,0.3);
+    margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid rgba(7,130,130,0.2);
+  }
+
+  .mission-last { margin-bottom: 6px; }
+
+  .mission-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .mission-tag {
+    font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 2px;
+    color: var(--teal); border: 1px solid rgba(7,130,130,0.3);
+    padding: 2px 6px; border-radius: 2px;
+  }
+
+  .center-mid-row { display: flex; gap: 6px; flex: 1; min-height: 0; }
+
+  .cal-panel { flex: 1; overflow: hidden; }
+  .cal-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; border-bottom: 1px solid rgba(7,130,130,0.08);
+  }
+  .cal-item.active .cal-time { color: var(--teal-bright); }
+  .cal-item.active .cal-title { color: var(--sand); }
+  .cal-time { font-family: 'Black Ops One', monospace; font-size: 8px; color: var(--teal-dim); letter-spacing: 1px; min-width: 35px; }
+  .cal-title { font-family: 'Courier Prime', monospace; font-size: 9px; color: var(--sand-dim); }
+
+  .live-panel { flex: 1; overflow: hidden; }
+  .live-block { margin-bottom: 6px; padding-bottom: 5px; border-bottom: 1px solid rgba(7,130,130,0.08); }
+  .live-label { font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 2px; color: var(--teal); margin-bottom: 2px; }
+  .live-value { font-family: 'Courier Prime', monospace; font-size: 14px; color: var(--sand); font-weight: 700; }
+  .live-sub { font-family: 'Courier Prime', monospace; font-size: 9px; color: var(--teal-dim); }
+
+  .todo-panel { flex-shrink: 0; }
+  .todo-list { display: flex; flex-direction: column; gap: 4px; }
+  .todo-item { display: flex; align-items: center; gap: 8px; }
+  .todo-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 4px var(--teal); flex-shrink: 0; }
+  .todo-text { font-family: 'Courier Prime', monospace; font-size: 9px; color: var(--sand-dim); }
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    flex-shrink: 0; background: var(--panel-bg); border: 1px solid var(--border);
+    padding: 10px; position: relative; overflow: hidden;
+  }
+  .status-row::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4;
+  }
+
+  .ring {
+    width: 90px; height: 90px; border-radius: 50%;
+    border: 1px solid var(--teal-dim);
+    position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .ring::before {
+    content: ''; position: absolute; top: -3px; left: -3px; right: -3px; bottom: -3px;
+    border-radius: 50%; border: 2px solid transparent;
+    border-top-color: var(--teal); border-right-color: var(--sand);
+    animation: spin 3s linear infinite;
+  }
+  .ring::after {
+    content: ''; position: absolute; top: 5px; left: 5px; right: 5px; bottom: 5px;
+    border-radius: 50%; border: 1px solid transparent;
+    border-bottom-color: var(--teal-dim); border-left-color: var(--sand-dim);
+    animation: spin 7s linear infinite reverse;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ring-inner { text-align: center; z-index: 1; }
+  .ring-icon { font-size: 22px; color: var(--sand); filter: drop-shadow(0 0 6px var(--teal)); margin-bottom: 2px; }
+  .ring-text { font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 4px; color: var(--sand); }
+
+  .status-info { display: flex; flex-direction: column; gap: 3px; }
+  .si { font-family: 'Courier Prime', monospace; font-size: 9px; color: var(--teal); }
+  .si span { color: var(--sand); }
+
+  /* Website/Search panel */
+  .web-panel {
+    flex: 1; background: rgba(10,8,20,0.85);
+    border: 1px solid var(--teal-dim); padding: 10px; overflow: hidden; position: relative;
+  }
+  .web-panel::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal-bright), transparent); opacity: 0.3;
+  }
+  .web-head {
+    font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 3px;
+    color: var(--teal-dim); margin-bottom: 6px; border-bottom: 1px solid rgba(7,130,130,0.12);
+    padding-bottom: 5px; display: flex; justify-content: space-between;
+  }
+  .web-query {
+    font-family: 'Courier Prime', monospace; font-size: 10px; color: var(--sand);
+    margin-bottom: 8px; padding: 4px 6px; border-left: 2px solid var(--teal);
+    background: rgba(7,130,130,0.05);
+  }
+  .web-out {
+    height: calc(100% - 55px); overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--teal-dim) transparent;
+  }
+  .web-out::-webkit-scrollbar { width: 2px; }
+  .web-out::-webkit-scrollbar-thumb { background: var(--teal-dim); }
+  .web-result {
+    font-family: 'Courier Prime', monospace; font-size: 10px;
+    line-height: 1.6; color: var(--teal-bright); opacity: 0;
+    margin-bottom: 6px; padding-bottom: 6px;
+    border-bottom: 1px solid rgba(7,130,130,0.1);
+  }
+  .web-result .web-title { color: var(--sand); font-size: 10px; margin-bottom: 2px; }
+  .web-placeholder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; color: var(--teal-dim);
+    font-family: 'Black Ops One', monospace; font-size: 10px; letter-spacing: 3px; text-align: center;
+  }
+  .web-placeholder-icon { font-size: 32px; margin-bottom: 10px; opacity: 0.3; }
+
+  /* RIGHT — ANIMATIONS */
+  .right { grid-row: 2; display: flex; flex-direction: column; gap: 6px; }
+
+  .osc-section { flex: 0 0 120px; position: relative; background: var(--panel-bg); border: 1px solid var(--border); padding: 8px; }
+  .osc-section::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4; }
+  #oscCanvas { width: 100%; height: 85px; }
+  .osc-lbl { font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 3px; color: var(--teal-dim); text-align: center; margin-top: 3px; }
+
+  .pipeline-section { flex: 0 0 90px; background: var(--panel-bg); border: 1px solid var(--border); padding: 8px; position: relative; }
+  .pipeline-section::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4; }
+  #pipelineCanvas { width: 100%; height: 65px; }
+
+  .anim-section {
+    flex: 1; background: var(--panel-bg); border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .anim-section::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.4; }
+  #animCanvas { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+  .anim-tag { font-family: 'Black Ops One', monospace; font-size: 7px; letter-spacing: 2px; color: var(--sand-dim); position: absolute; bottom: 8px; right: 10px; z-index: 2; }
+
+  /* BOTTOM BAR */
+  .bottom-bar {
+    grid-column: 1/-1; border-top: 1px solid var(--border); padding-top: 6px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: 'Black Ops One', monospace; font-size: 8px; color: var(--text-dim); letter-spacing: 2px;
+  }
+  .bc { color: var(--teal); font-size: 9px; }
+  .bc span { color: var(--sand); }
+
+  .corner { position: fixed; width: 32px; height: 32px; z-index: 20; }
+  .corner-tl { top: 8px; left: 8px; border-top: 2px solid var(--sand); border-left: 2px solid var(--sand); }
+  .corner-tr { top: 8px; right: 8px; border-top: 2px solid var(--sand); border-right: 2px solid var(--sand); }
+  .corner-bl { bottom: 8px; left: 8px; border-bottom: 2px solid var(--sand); border-left: 2px solid var(--sand); }
+  .corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid var(--sand); border-right: 2px solid var(--sand); }
+</style>
+</head>
+<body>
+<div class="corner corner-tl"></div>
+<div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div>
+<div class="corner corner-br"></div>
+
+<div class="hud">
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="title">B R U C E <span>//</span> WINGMAN</div>
+    <div class="top-center">
+      <div class="conn"><div class="conn-dot" id="connDot"></div><span id="connStatus">CONNECTING...</span></div>
+      <button class="hud-btn" onclick="toggleOsc()">OSC</button>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+
+  <!-- LEFT -->
+  <div class="left">
+
+    <!-- Wake Progress Bar -->
+    <div class="wake-progress-section">
+      <div class="wake-label">
+        // WAKE WORD READY
+        <span id="wakePercent">0%</span>
+      </div>
+      <div class="wake-bar-bg">
+        <div class="wake-bar-fill" id="wakeBar"></div>
+      </div>
+      <div class="wake-status" id="wakeStatus">Initializing systems...</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-section">
+      <div class="plabel">// sys_monitor</div>
+      <div class="stat-block">
+        <div class="stat-head"><span class="stat-name">CPU</span><span class="stat-val" id="cpuVal">0%</span></div>
+        <div class="stat-bar"><div class="stat-fill" id="cpuBar"></div></div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-head"><span class="stat-name">RAM</span><span class="stat-val" id="ramVal">0%</span></div>
+        <div class="stat-bar"><div class="stat-fill" id="ramBar"></div></div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-head"><span class="stat-name">GPU</span><span class="stat-val" id="gpuVal">0%</span></div>
+        <div class="stat-bar"><div class="stat-fill" id="gpuBar"></div></div>
+      </div>
+      <div style="margin-top:6px">
+        <div class="info-row"><span class="info-k">MODEL</span><span class="info-v" id="modelName">qwen2.5:7b</span></div>
+        <div class="info-row"><span class="info-k">VOICE</span><span class="info-v" id="voiceName">KOKORO</span></div>
+        <div class="info-row"><span class="info-k">OUTPUT</span><span class="info-v" id="outputName">HEADPHONES</span></div>
+        <div class="info-row"><span class="info-k">UPTIME</span><span class="info-v" id="uptime">00:00:00</span></div>
+        <div class="info-row"><span class="info-k">MSGS</span><span class="info-v" id="msgCount">0</span></div>
+      </div>
+    </div>
+
+    <!-- Small CMD Log -->
+    <div class="cmd-small">
+      <div class="cmd-small-head">// LIVE LOG</div>
+      <div class="cmd-small-out" id="cmdOut">
+        <div class="cmd-line s" style="opacity:1">[BOOT] Bruce v1.9<span class="cursor"></span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTER -->
+  <div class="center">
+
+    <!-- Status Row -->
+    <div class="status-row">
+      <div class="ring" id="statusRing">
+        <div class="ring-inner">
+          <div class="ring-icon" id="statusIcon">◈</div>
+          <div class="ring-text" id="statusText">IDLE</div>
+        </div>
+      </div>
+      <div class="status-info">
+        <div class="si">PROC: <span id="procDisplay">STANDBY</span></div>
+        <div class="si">MODE: <span id="modeDisplay">MANUAL</span></div>
+        <div class="si">THEME: <span id="themeDisplay">—</span></div>
+        <div class="si">SEARCH: <span id="searchDisplay">—</span></div>
+      </div>
+    </div>
+
+    <!-- MISSION BRIEFING (large) -->
+    <div class="panel mission-panel">
+      <div class="plabel">// mission_briefing</div>
+      <div class="mission-objective" id="missionObjective">AWAITING ORDERS</div>
+      <div class="mission-last" id="missionLast">
+        <span style="color:var(--teal-dim);font-size:8px;letter-spacing:2px;font-family:'Black Ops One',monospace">LAST INTEL:</span>
+        <div id="missionLastText" style="margin-top:4px;font-family:'Courier Prime',monospace;font-size:10px;color:var(--teal);line-height:1.5">No recent activity.</div>
+      </div>
+      <div class="mission-tags" id="missionTags"></div>
+    </div>
+
+    <!-- MIDDLE ROW: Calendar + Live Data -->
+    <div class="center-mid-row">
+
+      <!-- Calendar -->
+      <div class="panel cal-panel">
+        <div class="plabel">// schedule</div>
+        <div class="cal-item active">
+          <div class="cal-time">NOW</div>
+          <div class="cal-title">Active Session</div>
+        </div>
+        <div class="cal-item">
+          <div class="cal-time" id="calTime1">--:--</div>
+          <div class="cal-title" id="calTitle1">No events scheduled</div>
+        </div>
+        <div class="cal-item">
+          <div class="cal-time" id="calTime2">--:--</div>
+          <div class="cal-title" id="calTitle2">—</div>
+        </div>
+        <div class="cal-item">
+          <div class="cal-time" id="calTime3">--:--</div>
+          <div class="cal-title" id="calTitle3">—</div>
+        </div>
+        <div style="margin-top:6px;font-family:'Courier Prime',monospace;font-size:8px;color:var(--teal-dim);text-align:center;">Apple Calendar — connect via iPhone bridge</div>
+      </div>
+
+      <!-- Live Data -->
+      <div class="panel live-panel">
+        <div class="plabel">// live_data</div>
+
+        <!-- Weather -->
+        <div class="live-block">
+          <div class="live-label">WEATHER — PEMBROKE PINES FL</div>
+          <div class="live-value" id="weatherTemp">Loading...</div>
+          <div class="live-sub" id="weatherDesc">—</div>
+        </div>
+
+        <!-- Time -->
+        <div class="live-block">
+          <div class="live-label">LOCAL TIME</div>
+          <div class="live-value" id="localTime">--:--:--</div>
+        </div>
+
+        <!-- Time zones -->
+        <div class="live-block">
+          <div style="display:flex;justify-content:space-between;margin-top:2px">
+            <div><div class="live-label" style="font-size:6px">NEW YORK</div><div class="live-sub" id="tzNY">--:--</div></div>
+            <div><div class="live-label" style="font-size:6px">LONDON</div><div class="live-sub" id="tzLon">--:--</div></div>
+            <div><div class="live-label" style="font-size:6px">TOKYO</div><div class="live-sub" id="tzTok">--:--</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TODO ITEMS -->
+    <div class="panel todo-panel">
+      <div class="plabel">// immediate_tasks</div>
+      <div class="todo-list" id="todoList">
+        <div class="todo-item">
+          <div class="todo-dot"></div>
+          <div class="todo-text">Connect Apple Calendar via iPhone bridge</div>
+        </div>
+        <div class="todo-item">
+          <div class="todo-dot"></div>
+          <div class="todo-text">Set up Steam wishlist notifications</div>
+        </div>
+        <div class="todo-item">
+          <div class="todo-dot"></div>
+          <div class="todo-text">Configure Discord integration</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="osc-section">
+      <div class="plabel">// audio_signal</div>
+      <canvas id="oscCanvas"></canvas>
+      <div class="osc-lbl" id="oscLbl">IDLE</div>
+    </div>
+
+    <div class="pipeline-section">
+      <div class="plabel">// data_pipeline</div>
+      <canvas id="pipelineCanvas"></canvas>
+    </div>
+
+    <div class="anim-section">
+      <canvas id="animCanvas"></canvas>
+      <div class="anim-tag" id="animTag">—</div>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <div class="bc">CMD <span>INSERT</span> SPEAK &nbsp;|&nbsp; <span>END</span> TOGGLE &nbsp;|&nbsp; <span>F1</span> OSC</div>
+    <div id="bottomStatus">STATUS: IDLE</div>
+    <div>BRUCE v1.9 // WINGMAN AI</div>
+  </div>
+</div>
+
+<script>
+// ── LIVE TIME ─────────────────────────────────────────────────────────────────
+function updateTimes() {
+  const now = new Date();
+  document.getElementById('localTime').textContent = now.toTimeString().slice(0,8);
+
+  const fmt = (tz) => new Date().toLocaleTimeString('en-US', {timeZone:tz, hour:'2-digit', minute:'2-digit', hour12:false});
+  document.getElementById('tzNY').textContent = fmt('America/New_York');
+  document.getElementById('tzLon').textContent = fmt('Europe/London');
+  document.getElementById('tzTok').textContent = fmt('Asia/Tokyo');
+}
+setInterval(updateTimes, 1000);
+updateTimes();
+
+// ── WEATHER ───────────────────────────────────────────────────────────────────
+async function fetchWeather() {
+  try {
+    // Pembroke Pines FL coordinates
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=25.9939&longitude=-80.2395&current=temperature_2m,weathercode&temperature_unit=fahrenheit');
+    const d = await r.json();
+    const temp = Math.round(d.current.temperature_2m);
+    const code = d.current.weathercode;
+    const descs = {0:'Clear',1:'Mostly Clear',2:'Partly Cloudy',3:'Overcast',45:'Foggy',48:'Icy Fog',51:'Light Drizzle',61:'Light Rain',63:'Rain',65:'Heavy Rain',80:'Showers',95:'Thunderstorm'};
+    const desc = descs[code] || `Code ${code}`;
+    document.getElementById('weatherTemp').textContent = `${temp}°F`;
+    document.getElementById('weatherDesc').textContent = desc;
+  } catch(e) {
+    document.getElementById('weatherTemp').textContent = 'Unavailable';
+  }
+}
+fetchWeather();
+setInterval(fetchWeather, 300000); // refresh every 5 min
+
+// ── MISSION BRIEFING ──────────────────────────────────────────────────────────
+function updateMission(objective, lastIntel, tags) {
+  if(objective) {
+    const el = document.getElementById('missionObjective');
+    el.textContent = objective;
+    anime({targets: el, opacity:[0,1], translateY:[-5,0], duration:400, easing:'easeOutCubic'});
+  }
+  if(lastIntel) {
+    document.getElementById('missionLastText').textContent = lastIntel;
+  }
+  if(tags && tags.length > 0) {
+    const container = document.getElementById('missionTags');
+    container.innerHTML = '';
+    tags.forEach(t => {
+      const tag = document.createElement('div');
+      tag.className = 'mission-tag';
+      tag.textContent = t;
+      container.appendChild(tag);
+      anime({targets:tag, opacity:[0,1], scale:[0.8,1], duration:300, easing:'easeOutBack'});
+    });
+  }
+}
+
+// ── CLOCK + UPTIME ────────────────────────────────────────────────────────────
+function updateClock() {
+  const n = new Date();
+  document.getElementById('clock').textContent = n.toTimeString().slice(0,8) + ' // ' + n.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}).toUpperCase();
+}
+setInterval(updateClock, 1000); updateClock();
+
+let uptimeSec = 0;
+setInterval(() => {
+  uptimeSec++;
+  const h=String(Math.floor(uptimeSec/3600)).padStart(2,'0');
+  const m=String(Math.floor((uptimeSec%3600)/60)).padStart(2,'0');
+  const s=String(uptimeSec%60).padStart(2,'0');
+  document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
+}, 1000);
+
+// ── WAKE PROGRESS BAR ─────────────────────────────────────────────────────────
+let wakeReady = false;
+let wakeProgress = 0;
+
+function startWakeProgress(durationSeconds) {
+  const interval = 100;
+  const steps = (durationSeconds * 1000) / interval;
+  const increment = 100 / steps;
+  let current = 0;
+
+  document.getElementById('wakeStatus').textContent = 'Loading wake listener...';
+
+  const timer = setInterval(() => {
+    current += increment;
+    if (current >= 100) {
+      current = 100;
+      clearInterval(timer);
+    }
+    wakeProgress = current;
+    document.getElementById('wakeBar').style.width = current + '%';
+    document.getElementById('wakePercent').textContent = Math.round(current) + '%';
+  }, interval);
+}
+
+function setWakeReady() {
+  wakeReady = true;
+  document.getElementById('wakeBar').style.width = '100%';
+  document.getElementById('wakePercent').textContent = '100%';
+  document.getElementById('wakeStatus').textContent = 'Ready — say "Bruce online"';
+  document.getElementById('wakeBar').style.background = 'linear-gradient(90deg, #0bbfbf, #D7C49E)';
+  document.getElementById('wakeBar').style.boxShadow = '0 0 10px #0bbfbf';
+  anime({ targets: '#wakeBar', opacity: [1, 0.5], duration: 800, loop: true, direction: 'alternate', easing: 'easeInOutSine' });
+}
+
+// Start progress bar on boot (10 second countdown matching bruce_wake_1.py)
+// Progress bar starts when Bruce connects via WebSocket
+
+// ── TOGGLE OSC ────────────────────────────────────────────────────────────────
+let oscVisible = true;
+function toggleOsc() { oscVisible = !oscVisible; }
+document.addEventListener('keydown', e => { if(e.key==='F1'){e.preventDefault();toggleOsc();} });
+
+// ── OSCILLOSCOPE ──────────────────────────────────────────────────────────────
+const oscCvs = document.getElementById('oscCanvas');
+const oscCtx = oscCvs.getContext('2d');
+let oscPhase=0, oscAmp=0, oscTarget=0;
+function resizeOsc() { oscCvs.width=oscCvs.offsetWidth||280; oscCvs.height=85; }
+window.addEventListener('resize', resizeOsc); setTimeout(resizeOsc, 200);
+
+function drawOsc() {
+  const W=oscCvs.width, H=oscCvs.height;
+  if(!W){requestAnimationFrame(drawOsc);return;}
+  oscCtx.clearRect(0,0,W,H);
+  oscAmp += (oscTarget-oscAmp)*0.05;
+  if(oscAmp < 0.5) {
+    oscCtx.beginPath(); oscCtx.strokeStyle='rgba(7,130,130,0.2)'; oscCtx.lineWidth=1;
+    oscCtx.moveTo(0,H/2); oscCtx.lineTo(W,H/2); oscCtx.stroke();
+  } else {
+    for(let l=0;l<5;l++){
+      const t=l/5, alpha=0.1+t*0.9, yOff=(l-2.5)*3, scaleY=0.5+t*0.5;
+      oscCtx.beginPath();
+      oscCtx.strokeStyle=l===4?`rgba(11,191,191,${alpha})`:`rgba(7,130,130,${alpha*0.4})`;
+      oscCtx.lineWidth=l===4?2:0.8; oscCtx.shadowBlur=l===4?8:0; oscCtx.shadowColor='#0bbfbf';
+      for(let x=0;x<=W;x++){
+        const p=x/W;
+        const y=H/2+yOff+(Math.sin(p*Math.PI*8+oscPhase)*oscAmp*0.5+Math.sin(p*Math.PI*3.3+oscPhase*1.4)*oscAmp*0.3)*scaleY;
+        x===0?oscCtx.moveTo(x,y):oscCtx.lineTo(x,y);
+      }
+      oscCtx.stroke();
+    }
+  }
+  oscCtx.shadowBlur=0; oscPhase+=0.06; requestAnimationFrame(drawOsc);
+}
+drawOsc();
+function setOscActive(on){oscTarget=on?24:0;document.getElementById('oscLbl').textContent=on?'ACTIVE':'IDLE';}
+
+// ── PIPELINE ──────────────────────────────────────────────────────────────────
+const pipeCvs = document.getElementById('pipelineCanvas');
+const pipeCtx = pipeCvs.getContext('2d');
+pipeCvs.width = 290; pipeCvs.height = 65;
+
+const PIPE_NODES = [{label:'MIC',x:18},{label:'WHISPER',x:70},{label:'OLLAMA',x:145},{label:'ELEVEN',x:210},{label:'OUT',x:262}];
+let pipePackets = [], activeStages = new Set();
+
+function drawPipeline() {
+  const W=pipeCvs.width, H=pipeCvs.height, y=H/2;
+  pipeCtx.clearRect(0,0,W,H);
+  for(let i=0;i<PIPE_NODES.length-1;i++){
+    const n1=PIPE_NODES[i],n2=PIPE_NODES[i+1];
+    pipeCtx.beginPath(); pipeCtx.moveTo(n1.x+10,y); pipeCtx.lineTo(n2.x-10,y);
+    pipeCtx.strokeStyle='rgba(7,130,130,0.2)'; pipeCtx.lineWidth=1; pipeCtx.stroke();
+  }
+  pipePackets=pipePackets.filter(p=>p.x<W+10);
+  pipePackets.forEach(p=>{
+    p.x+=p.speed;
+    pipeCtx.beginPath(); pipeCtx.arc(p.x,y,3,0,Math.PI*2);
+    pipeCtx.fillStyle='#0bbfbf'; pipeCtx.shadowBlur=8; pipeCtx.shadowColor='#0bbfbf'; pipeCtx.fill(); pipeCtx.shadowBlur=0;
+    for(let i=1;i<=3;i++){pipeCtx.beginPath();pipeCtx.arc(p.x-i*4,y,2-i*0.4,0,Math.PI*2);pipeCtx.fillStyle=`rgba(11,191,191,${0.3-i*0.08})`;pipeCtx.fill();}
+  });
+  PIPE_NODES.forEach(n=>{
+    const isActive=activeStages.has(n.label);
+    pipeCtx.beginPath(); pipeCtx.arc(n.x,y,isActive?8:6,0,Math.PI*2);
+    pipeCtx.fillStyle=isActive?'rgba(11,191,191,0.2)':'rgba(7,130,130,0.08)';
+    pipeCtx.strokeStyle=isActive?'#0bbfbf':'rgba(7,130,130,0.3)'; pipeCtx.lineWidth=isActive?2:1;
+    pipeCtx.shadowBlur=isActive?10:0; pipeCtx.shadowColor='#0bbfbf'; pipeCtx.fill(); pipeCtx.stroke(); pipeCtx.shadowBlur=0;
+    pipeCtx.font="6px 'Courier New'"; pipeCtx.fillStyle=isActive?'#0bbfbf':'rgba(7,130,130,0.5)'; pipeCtx.textAlign='center';
+    pipeCtx.fillText(n.label,n.x,y+18);
+  });
+  requestAnimationFrame(drawPipeline);
+}
+drawPipeline();
+function activatePipeline(stages){activeStages=new Set(stages);if(stages.length>0)pipePackets.push({x:PIPE_NODES[0].x,speed:2+Math.random()*2});}
+
+// ── MAIN ANIMATION ────────────────────────────────────────────────────────────
+const animCvs = document.getElementById('animCanvas');
+const animCtx = animCvs.getContext('2d');
+let animFrame = null;
+
+function resizeAnim(){const p=document.querySelector('.anim-section');animCvs.width=p.clientWidth||290;animCvs.height=p.clientHeight||200;}
+window.addEventListener('resize',resizeAnim); setTimeout(resizeAnim,300);
+
+function clearAnim(){if(animFrame)cancelAnimationFrame(animFrame);animCtx.clearRect(0,0,animCvs.width,animCvs.height);}
+
+const ANIMATIONS = {
+  radar: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height,cx=W/2,cy=H/2;
+    let angle=0; const maxR=Math.min(W,H)*0.42;
+    const blips=[{label:'CPU',r:maxR*0.5,angle:Math.PI*0.3,alpha:1},{label:'GPU',r:maxR*0.7,angle:Math.PI*1.1,alpha:1},{label:'RAM',r:maxR*0.4,angle:Math.PI*1.8,alpha:1}];
+    function frame(){
+      animCtx.clearRect(0,0,W,H); angle+=0.02;
+      [0.25,0.5,0.75,1].forEach(p=>{animCtx.beginPath();animCtx.arc(cx,cy,maxR*p,0,Math.PI*2);animCtx.strokeStyle='rgba(7,130,130,0.12)';animCtx.lineWidth=0.5;animCtx.stroke();});
+      for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;animCtx.beginPath();animCtx.moveTo(cx,cy);animCtx.lineTo(cx+Math.cos(a)*maxR,cy+Math.sin(a)*maxR);animCtx.strokeStyle='rgba(7,130,130,0.06)';animCtx.lineWidth=0.5;animCtx.stroke();}
+      animCtx.save();animCtx.translate(cx,cy);animCtx.rotate(angle);
+      for(let i=0;i<50;i++){const a=-(i/50)*(Math.PI*0.6);animCtx.beginPath();animCtx.moveTo(0,0);animCtx.arc(0,0,maxR,a-Math.PI/50,a);animCtx.fillStyle=`rgba(11,191,191,${(1-i/50)*0.1})`;animCtx.fill();}
+      animCtx.beginPath();animCtx.moveTo(0,0);animCtx.lineTo(maxR,0);animCtx.strokeStyle='#0bbfbf';animCtx.lineWidth=1.5;animCtx.shadowBlur=8;animCtx.shadowColor='#078282';animCtx.stroke();animCtx.restore();
+      blips.forEach(b=>{const diff=((angle-b.angle)%(Math.PI*2)+Math.PI*2)%(Math.PI*2);if(diff<0.08)b.alpha=1;else b.alpha=Math.max(0.2,b.alpha-0.003);const bx=cx+Math.cos(b.angle)*b.r,by=cy+Math.sin(b.angle)*b.r;animCtx.beginPath();animCtx.arc(bx,by,5,0,Math.PI*2);animCtx.fillStyle=`rgba(215,196,158,${b.alpha})`;animCtx.shadowBlur=b.alpha>0.8?12:4;animCtx.shadowColor='#D7C49E';animCtx.fill();animCtx.shadowBlur=0;animCtx.font="7px 'Black Ops One'";animCtx.fillStyle=`rgba(215,196,158,${b.alpha})`;animCtx.textAlign='center';animCtx.fillText(b.label,bx,by-9);});
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  },
+  gears: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height; let a1=0,a2=0,a3=0,a4=0;
+    function drawGear(x,y,r,teeth,angle,color,lw=1.5){
+      animCtx.save();animCtx.translate(x,y);animCtx.rotate(angle);animCtx.strokeStyle=color;animCtx.lineWidth=lw;animCtx.shadowBlur=8;animCtx.shadowColor=color;
+      const tH=r*0.22,tW=(2*Math.PI*r)/teeth*0.38;
+      animCtx.beginPath();for(let i=0;i<teeth;i++){const a=(i/teeth)*Math.PI*2,a1=a-tW/r,a2=a+tW/r;animCtx.moveTo(Math.cos(a1)*r,Math.sin(a1)*r);animCtx.lineTo(Math.cos(a1)*(r+tH),Math.sin(a1)*(r+tH));animCtx.lineTo(Math.cos(a2)*(r+tH),Math.sin(a2)*(r+tH));animCtx.lineTo(Math.cos(a2)*r,Math.sin(a2)*r);}animCtx.stroke();
+      animCtx.beginPath();animCtx.arc(0,0,r,0,Math.PI*2);animCtx.stroke();animCtx.beginPath();animCtx.arc(0,0,r*0.35,0,Math.PI*2);animCtx.stroke();
+      for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;animCtx.beginPath();animCtx.moveTo(Math.cos(a)*r*0.35,Math.sin(a)*r*0.35);animCtx.lineTo(Math.cos(a)*r*0.82,Math.sin(a)*r*0.82);animCtx.stroke();}
+      animCtx.restore();
+    }
+    function frame(){animCtx.clearRect(0,0,W,H);a1+=0.012;a2-=0.02;a3+=0.032;a4-=0.015;drawGear(W*0.38,H*0.45,42,14,a1,'#078282',2);drawGear(W*0.38+69,H*0.45,26,9,a2,'#D7C49E',1.5);drawGear(W*0.38+69,H*0.45+46,17,6,a3,'#5a6e7a',1);drawGear(W*0.38-48,H*0.45+38,20,7,a4,'#045555',1);animFrame=requestAnimationFrame(frame);}
+    frame();
+  },
+  targeting: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height; let t=0,tx=W/2,ty=H/2,dx=W/2,dy=H/2;
+    setInterval(()=>{dx=40+Math.random()*(W-80);dy=30+Math.random()*(H-60);},2200);
+    function frame(){
+      animCtx.clearRect(0,0,W,H);t+=0.03;tx+=(dx-tx)*0.04;ty+=(dy-ty)*0.04;const pulse=Math.sin(t*2)*0.3+0.7;const locked=Math.abs(tx-dx)<4&&Math.abs(ty-dy)<4;
+      animCtx.beginPath();animCtx.arc(tx,ty,36,0,Math.PI*2);animCtx.strokeStyle=`rgba(7,130,130,${pulse*0.3})`;animCtx.lineWidth=1;animCtx.stroke();
+      animCtx.save();animCtx.translate(tx,ty);animCtx.rotate(t);for(let i=0;i<4;i++){const a=(i/4)*Math.PI*2;animCtx.beginPath();animCtx.arc(0,0,22,a+0.3,a+Math.PI/2-0.3);animCtx.strokeStyle=locked?'#D7C49E':'#0bbfbf';animCtx.lineWidth=2.5;animCtx.shadowBlur=10;animCtx.shadowColor=locked?'#D7C49E':'#078282';animCtx.stroke();}animCtx.restore();
+      animCtx.strokeStyle=`rgba(215,196,158,${pulse*0.4})`;animCtx.lineWidth=0.5;animCtx.setLineDash([4,4]);animCtx.beginPath();animCtx.moveTo(tx-50,ty);animCtx.lineTo(tx-24,ty);animCtx.moveTo(tx+24,ty);animCtx.lineTo(tx+50,ty);animCtx.moveTo(tx,ty-46);animCtx.lineTo(tx,ty-24);animCtx.moveTo(tx,ty+24);animCtx.lineTo(tx,ty+46);animCtx.stroke();animCtx.setLineDash([]);
+      animCtx.beginPath();animCtx.arc(tx,ty,4,0,Math.PI*2);animCtx.fillStyle=locked?'#D7C49E':'#0bbfbf';animCtx.shadowBlur=12;animCtx.shadowColor=animCtx.fillStyle;animCtx.fill();
+      if(locked){animCtx.font="8px 'Black Ops One'";animCtx.fillStyle='#D7C49E';animCtx.textAlign='left';animCtx.fillText('LOCKED',tx+28,ty-26);}
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  },
+  core: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height,cx=W/2,cy=H/2; let t=0;
+    function frame(){
+      animCtx.clearRect(0,0,W,H);t+=0.03;
+      for(let ring=0;ring<5;ring++){const r=14+ring*17;const rot=t*(ring%2===0?1:-1)*(0.3+ring*0.12);animCtx.save();animCtx.translate(cx,cy);animCtx.rotate(rot);animCtx.beginPath();for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2;i===0?animCtx.moveTo(Math.cos(a)*r,Math.sin(a)*r):animCtx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}animCtx.closePath();animCtx.strokeStyle=ring===0?'#0bbfbf':ring===1?'#078282':ring===2?'#056060':ring===3?'#034444':'#022222';animCtx.lineWidth=ring<2?2:1;animCtx.shadowBlur=ring<2?14:3;animCtx.shadowColor='#078282';animCtx.stroke();animCtx.restore();}
+      for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2+t*1.5;animCtx.beginPath();animCtx.moveTo(cx+Math.cos(a)*10,cy+Math.sin(a)*10);animCtx.quadraticCurveTo(cx+Math.cos(a+0.4)*42,cy+Math.sin(a+0.4)*42,cx+Math.cos(a+0.55)*28,cy+Math.sin(a+0.55)*28);animCtx.strokeStyle=`rgba(215,196,158,${Math.sin(t*3+i)*0.2+0.3})`;animCtx.lineWidth=1;animCtx.stroke();}
+      const pulse=Math.sin(t*3)*6+12;const grad=animCtx.createRadialGradient(cx,cy,0,cx,cy,pulse);grad.addColorStop(0,'rgba(11,191,191,0.9)');grad.addColorStop(0.5,'rgba(7,130,130,0.4)');grad.addColorStop(1,'rgba(7,130,130,0)');animCtx.beginPath();animCtx.arc(cx,cy,pulse,0,Math.PI*2);animCtx.fillStyle=grad;animCtx.fill();
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  },
+  warp: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height,cx=W/2,cy=H/2;
+    const lines=Array.from({length:80},()=>({angle:Math.random()*Math.PI*2,r:Math.random()*15,speed:1.5+Math.random()*3}));
+    function frame(){
+      animCtx.clearRect(0,0,W,H);
+      lines.forEach(l=>{l.r+=l.speed;if(l.r>Math.max(W,H)*0.7){l.r=0;l.angle=Math.random()*Math.PI*2;l.speed=1.5+Math.random()*3;}const alpha=Math.min(l.r/80,1);const x1=cx+Math.cos(l.angle)*l.r,y1=cy+Math.sin(l.angle)*l.r*0.65;const x2=cx+Math.cos(l.angle)*(l.r+l.speed*5),y2=cy+Math.sin(l.angle)*(l.r+l.speed*5)*0.65;animCtx.beginPath();animCtx.moveTo(x1,y1);animCtx.lineTo(x2,y2);animCtx.strokeStyle=l.angle<Math.PI?`rgba(11,191,191,${alpha*0.8})`:`rgba(215,196,158,${alpha*0.5})`;animCtx.lineWidth=alpha*1.8;animCtx.stroke();});
+      const grad=animCtx.createRadialGradient(cx,cy,0,cx,cy,18);grad.addColorStop(0,'rgba(11,191,191,0.7)');grad.addColorStop(1,'rgba(11,191,191,0)');animCtx.beginPath();animCtx.arc(cx,cy,18,0,Math.PI*2);animCtx.fillStyle=grad;animCtx.fill();
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  },
+  council: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height,cx=W/2,cy=H/2; let t=0;
+    const labels=['SYS','PROB','DEV','1ST','PRAG'];
+    const nodes=labels.map((l,i)=>{const a=(i/5)*Math.PI*2-Math.PI/2;return{label:l,x:cx+Math.cos(a)*65,y:cy+Math.sin(a)*50,active:false};});
+    let activeNode=0; setInterval(()=>{activeNode=(activeNode+1)%5;nodes.forEach((n,i)=>n.active=i===activeNode);},800);
+    function frame(){
+      animCtx.clearRect(0,0,W,H);t+=0.02;
+      nodes.forEach((n1,i)=>{nodes.forEach((n2,j)=>{if(j>i){animCtx.beginPath();animCtx.moveTo(n1.x,n1.y);animCtx.lineTo(n2.x,n2.y);animCtx.strokeStyle='rgba(7,130,130,0.08)';animCtx.lineWidth=0.5;animCtx.stroke();}});});
+      const an=nodes[activeNode],next=nodes[(activeNode+1)%5];animCtx.beginPath();animCtx.moveTo(an.x,an.y);animCtx.lineTo(next.x,next.y);animCtx.strokeStyle='rgba(11,191,191,0.5)';animCtx.lineWidth=1.5;animCtx.shadowBlur=8;animCtx.shadowColor='#0bbfbf';animCtx.stroke();animCtx.shadowBlur=0;
+      animCtx.beginPath();animCtx.arc(cx,cy,11+Math.sin(t*2)*2,0,Math.PI*2);animCtx.strokeStyle='#078282';animCtx.lineWidth=1.5;animCtx.stroke();animCtx.font="6px 'Black Ops One'";animCtx.fillStyle='#078282';animCtx.textAlign='center';animCtx.fillText('BRUCE',cx,cy+3);
+      nodes.forEach(n=>{animCtx.beginPath();animCtx.arc(n.x,n.y,n.active?13:9,0,Math.PI*2);animCtx.fillStyle=n.active?'rgba(11,191,191,0.2)':'rgba(7,130,130,0.08)';animCtx.strokeStyle=n.active?'#0bbfbf':'rgba(7,130,130,0.3)';animCtx.lineWidth=n.active?2:1;animCtx.shadowBlur=n.active?10:0;animCtx.shadowColor='#0bbfbf';animCtx.fill();animCtx.stroke();animCtx.shadowBlur=0;animCtx.font="6px 'Black Ops One'";animCtx.fillStyle=n.active?'#0bbfbf':'rgba(7,130,130,0.5)';animCtx.textAlign='center';animCtx.fillText(n.label,n.x,n.y+3);});
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  },
+  thinking: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height,cx=W/2,cy=H/2; let t=0;
+    function frame(){
+      animCtx.clearRect(0,0,W,H);t+=0.025;
+      const sides=3+Math.floor((Math.sin(t*0.3)+1)*2);const r=38+Math.sin(t*0.7)*14;
+      animCtx.beginPath();for(let i=0;i<=sides;i++){const a=(i/sides)*Math.PI*2+t*0.2;animCtx.lineTo?animCtx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):animCtx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}
+      animCtx.strokeStyle='#0bbfbf';animCtx.lineWidth=2;animCtx.shadowBlur=12;animCtx.shadowColor='#078282';animCtx.stroke();
+      for(let i=0;i<3;i++){const a=(i/3)*Math.PI*2+t*(i%2===0?0.4:-0.3);const ir=14+i*9;animCtx.beginPath();animCtx.arc(cx,cy,ir,a,a+Math.PI*1.3);animCtx.strokeStyle=`rgba(215,196,158,${0.2+i*0.15})`;animCtx.lineWidth=1;animCtx.shadowBlur=0;animCtx.stroke();}
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  },
+  idle: () => {
+    clearAnim(); const W=animCvs.width,H=animCvs.height,cx=W/2,cy=H/2; let t=0;
+    function frame(){
+      animCtx.clearRect(0,0,W,H);t+=0.01;
+      animCtx.beginPath();animCtx.arc(cx,cy,18+Math.sin(t)*4,0,Math.PI*2);animCtx.strokeStyle=`rgba(7,130,130,${0.18+Math.sin(t)*0.08})`;animCtx.lineWidth=1;animCtx.stroke();
+      animCtx.font="7px 'Black Ops One'";animCtx.fillStyle='rgba(7,130,130,0.25)';animCtx.textAlign='center';animCtx.fillText('STANDBY',cx,cy+4);
+      animFrame=requestAnimationFrame(frame);
+    } frame();
+  }
+};
+
+let animQueue=[], animPlaying=false;
+function queueAnimation(theme){animQueue.push(theme);if(!animPlaying)playNextAnim();}
+function playNextAnim(){
+  if(animQueue.length===0){animPlaying=false;return;}
+  animPlaying=true;
+  const theme=animQueue.shift();
+  document.getElementById('animTag').textContent=theme.toUpperCase();
+  document.getElementById('themeDisplay').textContent=theme.toUpperCase();
+  const fn=ANIMATIONS[theme]||ANIMATIONS.idle;fn();
+  setTimeout(()=>{clearAnim();playNextAnim();},animQueue.length>0?4000:8000);
+}
+
+const ANIM_MAP={
+  radar:['system','monitor','status','scan','check','stats','cpu','gpu','ram'],
+  gears:['think','process','analyz','calculat','comput','work','build'],
+  targeting:['find','search','look','target','focus','aim','track','hunt','game','gaming'],
+  core:['power','energy','force','strong','intense','core','ai','neural'],
+  warp:['space','star','galaxy','orbit','universe','fast','speed','travel','star citizen'],
+  council:['council','debate','advisor','perspective','opinion'],
+  thinking:['question','wonder','curious','unsure','maybe','possible','consider'],
+};
+function detectAnims(text){const t=text.toLowerCase();const matched=[];Object.entries(ANIM_MAP).forEach(([anim,keys])=>{if(keys.some(k=>t.includes(k))&&!matched.includes(anim))matched.push(anim);});return matched.slice(0,3);}
+
+// ── STATUS ────────────────────────────────────────────────────────────────────
+const STATES={
+  idle:{icon:'◈',text:'IDLE',proc:'STANDBY',osc:false,pipe:[],cmd:null},
+  wake_ready:{icon:'◉',text:'SAY ONLINE',proc:'WAKE_WORD',osc:false,pipe:[],cmd:'[WAKE] Listening...'},
+  listening:{icon:'◉',text:'LISTENING',proc:'AUDIO_IN',osc:false,pipe:['MIC'],cmd:'[INPUT] Recording...'},
+  processing:{icon:'⟳',text:'PROCESSING',proc:'INFERENCE',osc:false,pipe:['WHISPER','OLLAMA'],cmd:'[CMD] whisper → ollama'},
+  speaking:{icon:'▶',text:'SPEAKING',proc:'AUDIO_OUT',osc:true,pipe:['ELEVEN','OUT'],cmd:'[CMD] kokoro → output'},
+};
+
+function setStatus(state){
+  const s=STATES[state]||STATES.idle;
+  const icon=document.getElementById('statusIcon');
+  document.getElementById('statusText').textContent=s.text;
+  document.getElementById('procDisplay').textContent=s.proc;
+  document.getElementById('bottomStatus').textContent='STATUS: '+s.text;
+  anime({targets:icon,opacity:[0,1],scale:[0.5,1],duration:300,easing:'easeOutBack',begin:()=>{icon.textContent=s.icon;}});
+  setOscActive(s.osc);
+  activatePipeline(s.pipe);
+  if(s.cmd)addCmd(s.cmd,'s');
+  if(state==='wake_ready')setWakeReady();
+}
+
+// ── CMD LOG ───────────────────────────────────────────────────────────────────
+let msgCount=0;
+function addCmd(text,type='s'){
+  const out=document.getElementById('cmdOut');
+  out.querySelectorAll('.cursor').forEach(c=>c.remove());
+  const line=document.createElement('div');line.className=`cmd-line ${type}`;line.innerHTML=text;
+  out.appendChild(line);out.scrollTop=out.scrollHeight;
+  anime({targets:line,opacity:[0,1],translateX:[-3,0],duration:250,easing:'easeOutCubic'});
+  const cur=document.createElement('span');cur.className='cursor';line.appendChild(cur);
+}
+
+// ── WEB/SEARCH PANEL ─────────────────────────────────────────────────────────
+function showSearchResults(query, results, images) {
+  const webOut = document.getElementById('webOut');
+  const webQuery = document.getElementById('webQuery');
+  const webTimestamp = document.getElementById('webTimestamp');
+  const now = new Date().toTimeString().slice(0,8);
+
+  document.getElementById('searchDisplay').textContent = query.slice(0,20) + (query.length>20?'...':'');
+  webTimestamp.textContent = now;
+
+  webQuery.style.display = 'block';
+  webQuery.textContent = '> ' + query;
+
+  webOut.innerHTML = '';
+
+  // Show images if available
+  if (images && images.length > 0) {
+    const imgRow = document.createElement('div');
+    imgRow.style.cssText = 'display:flex;gap:4px;margin-bottom:8px;';
+    images.forEach(src => {
+      const img = document.createElement('img');
+      img.src = src;
+      img.style.cssText = 'width:80px;height:55px;object-fit:cover;border:1px solid rgba(7,130,130,0.3);opacity:0;';
+      img.onload = () => anime({targets:img, opacity:[0,0.85], duration:500, easing:'easeOutCubic'});
+      img.onerror = () => img.style.display='none';
+      imgRow.appendChild(img);
+    });
+    webOut.appendChild(imgRow);
+  }
+
+  // Show result cards
+  results.forEach((r, i) => {
+    const card = document.createElement('div');
+    card.className = 'web-result';
+    card.innerHTML = `
+      <div class="web-title">${r.title}</div>
+      <div style="font-size:8px;color:var(--teal-dim);margin-bottom:3px;font-family:'Courier Prime',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.href}</div>
+      <div style="font-size:9px;color:var(--teal);font-family:'Courier Prime',monospace;line-height:1.5;">${r.body.slice(0,150)}${r.body.length>150?'...':''}</div>
+    `;
+    webOut.appendChild(card);
+    anime({targets:card, opacity:[0,1], translateY:[8,0], duration:400, delay:i*100, easing:'easeOutCubic'});
+  });
+}
+
+// ── WEBSOCKET ─────────────────────────────────────────────────────────────────
+let ws=null;
+function connectWS(){
+  ws=new WebSocket('ws://localhost:8765');
+  ws.onopen=()=>{
+    document.getElementById('connStatus').textContent='CONNECTED';
+    document.getElementById('connDot').style.cssText='width:6px;height:6px;border-radius:50%;background:#0bbfbf;box-shadow:0 0 8px #078282';
+    addCmd('[NET] Bruce connected.','s');
+    queueAnimation('radar');
+  };
+  ws.onmessage=(e)=>{
+    const d=JSON.parse(e.data);
+    if(d.type==='status'){
+      setStatus(d.value);
+      if(d.value==='processing')queueAnimation('thinking');
+      if(d.value==='speaking'&&animQueue.length===0)queueAnimation('core');
+    }
+    if(d.type==='user_text'){
+      msgCount++;document.getElementById('msgCount').textContent=msgCount;
+      addCmd(`[YOU] ${d.value}`,'u');
+      updateMission(d.value.toUpperCase().slice(0,40)+(d.value.length>40?'...':''), null, null);
+      detectAnims(d.value).forEach(a=>queueAnimation(a));
+    }
+    if(d.type==='bruce_text'){
+      addCmd(`[BRUCE] ${d.value.slice(0,60)}${d.value.length>60?'...':''}`,'b');
+      updateMission(null, d.value, detectAnims(d.value));
+      detectAnims(d.value).forEach(a=>queueAnimation(a));
+    }
+    if(d.type==='search'){
+      showSearchResults(d.query, d.results, d.images||[]);
+      queueAnimation('targeting');
+    }
+    if(d.type==='animation')queueAnimation(d.value);
+    if(d.type==='voice')document.getElementById('voiceName').textContent=d.value.toUpperCase();
+    if(d.type==='output')document.getElementById('outputName').textContent=d.value.toUpperCase();
+    if(d.type==='stats'){
+      ['cpu','ram','gpu'].forEach(k=>{document.getElementById(k+'Val').textContent=d[k]+'%';document.getElementById(k+'Bar').style.width=d[k]+'%';});
+    }
+    if(d.type==='wake_ready')setWakeReady();
+  };
+  ws.onclose=()=>{
+    document.getElementById('connStatus').textContent='RECONNECTING...';
+    document.getElementById('connDot').style.cssText='width:6px;height:6px;border-radius:50%;background:#8B4444;box-shadow:none';
+    setTimeout(connectWS,3000);
+  };
+}
+connectWS();
+
+setInterval(()=>{if(ws&&ws.readyState===WebSocket.OPEN)return;fetch('http://localhost:9001/stats').then(r=>r.json()).then(d=>{['cpu','ram','gpu'].forEach(k=>{document.getElementById(k+'Val').textContent=d[k]+'%';document.getElementById(k+'Bar').style.width=d[k]+'%';});}).catch(()=>{});},2000);
+
+// ── BOOT ANIMATIONS ───────────────────────────────────────────────────────────
+anime({targets:'.corner',opacity:[1,0.4],duration:2500,loop:true,direction:'alternate',easing:'easeInOutSine',delay:anime.stagger(600)});
+anime({targets:'#connDot',opacity:[1,0.2],duration:1500,loop:true,direction:'alternate',easing:'easeInOutSine'});
+anime.timeline({easing:'easeOutCubic'})
+  .add({targets:'.corner',opacity:[0,1],duration:500})
+  .add({targets:'.top-bar',opacity:[0,1],translateY:[-10,0],duration:400},'-=200')
+  .add({targets:'.stats-section, .wake-progress-section, .cmd-small, .status-row, .web-panel, .osc-section, .pipeline-section, .anim-section',opacity:[0,1],translateY:[20,0],duration:500,delay:anime.stagger(80)},'-=200')
+  .add({targets:'.bottom-bar',opacity:[0,1],translateY:[10,0],duration:400},'-=200');
+
+setTimeout(()=>ANIMATIONS.idle(),1000);
+setTimeout(()=>startWakeProgress(23), 2000);
+</script>
+</body>
+</html>
