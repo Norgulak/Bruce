@@ -13,5 +13,9 @@ Most people's experience with LLMs and documents is retrieval: you upload files,
 5. **Mark confidence.** Distinguish between "confirmed and done," "in progress," and "proposed but not decided" — especially in the roadmap. Don't quietly promote a proposal to a commitment.
 6. **This file itself can be edited** if the maintenance approach stops working well in practice. It's not sacred, just a starting point.
 
+## Working agreements
+- **Any change to a core Bruce function** (audio, TTS/voice, wake word, the brain/LLM logic, HUD data flow) gets actually run and checked with Banmi before being considered done — not just written and assumed correct. CodeRabbit reviews code quality on pull requests, but it never executes Bruce, so it can't catch runtime/hardware issues (wrong audio device, TTS timing, thread races, etc.). The two are complementary, not substitutes for each other.
+- Routine small changes can go straight to `main`. Save the branch + PR + CodeRabbit review ritual for changes that are actually risky or substantial (new features, anything touching credentials/security, bigger refactors) — see decisions-log for the reasoning.
+
 ## Why this exists
 Tonight's session started with Banmi having to paste an entire handoff summary by hand because there was no persistent memory across chats, and partway through he lost track of which chat was even "the" Bruce conversation. This vault exists so that doesn't have to happen again — a fresh session in this folder should be able to read `CLAUDE.md` and immediately have working context, without a manual copy-paste ritual.

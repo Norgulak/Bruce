@@ -2,6 +2,9 @@
 
 Chronological, most recent first. Each entry: what changed, why.
 
+## 2026-08-13 — Workflow: selective PRs + mandatory run-and-check for core changes
+Considered a local git hook to force every change through a branch + PR (so CodeRabbit reviews everything). Decided against it: Banmi's intent is single-machine development, not multi-collaborator, and forcing full PR ceremony on every small edit adds friction disproportionate to the benefit. Landed on a lighter rule instead: routine small changes go straight to `main`; branch + PR + CodeRabbit review is reserved for risky/substantial changes. Separately, added a hard rule that any change to a core Bruce function (audio, TTS, wake word, brain logic, HUD data flow) must actually be run and checked before being called done — motivated by Banmi's experience during Bruce's original build of repeatedly having to go back and fix things that looked right but didn't work in practice. CodeRabbit reviews code quality on PRs but never executes Bruce, so it can't catch that category of bug; the run-and-check step is what actually addresses it.
+
 ## 2026-08-13 — Debug print spam cleaned up
 Added a `DEBUG_MODE = False` flag to `bruce.py`'s config block and wrapped the four `[DEBUG]` prints in `BruceBrain.ask()` behind it, instead of deleting them outright. Why: they were cluttering the console on every response, but they're genuinely useful if the Ollama connection breaks again — gating instead of deleting keeps that option available.
 
