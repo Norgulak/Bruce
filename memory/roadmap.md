@@ -26,7 +26,7 @@ Status markers: **[confirmed]** = decided and either done or actively planned. *
 
 ## Claude / Agent Tooling
 - Add CodeRabbit for code review **[confirmed, DONE]** — installed and verified working this session via a test PR.
-- Open agent Skills ecosystem (`npx skills add <repo>`, e.g. `frontend-design`, `find-skills`) from reel 5 (liamjohnston.ai) **[proposed — needs verification that this installs into a location Cowork actually reads, since Cowork's skill mechanism may differ from Claude Code CLI's]**
+- Open agent Skills ecosystem (`npx skills add <repo>`, e.g. `frontend-design`, `find-skills`) from reel 5 (liamjohnston.ai) **[investigated and resolved — see below]**
 - Add UI UX Pro Max from GitHub **[confirmed, not started]**
 - Add 21st.dev **[confirmed, not started]**
 - Try LiveKit **[confirmed, not started]**
@@ -40,6 +40,9 @@ Status markers: **[confirmed]** = decided and either done or actively planned. *
 - TTS delay (~5 seconds with Kokoro)
 - Monitor audio switch command not working
 - Debug lines still in CMD output (`[DEBUG]` prints in `bruce.py`)
+
+## Reel 5 investigation outcome
+Tested `npx skills add` directly (2026-08-13). It works and installs real skill packages into a project-local `.claude/skills/` folder, but it targets 76 named coding agents by slug (claude-code, codex, cursor, windsurf, etc.) — Cowork is not among them. Coword's own skills live in a separate, read-only, Cowork-managed directory, so a project-local install here would never actually be read by this session. It *would* work if Bruce were ever developed via Claude Code CLI directly instead of Cowork — a real option, but a workflow change (terminal-based instead of chat-based), not just a "fix." Decided against installing Claude Code for this alone. Instead, pulled the actual content of the `frontend-design` skill by hand and translated it for Bruce's HUD — see `memory/frontend-design-notes.md`. Net effect: got the useful part of the reel without adopting a second tool.
 
 ## Instagram Reels Decoded So Far
 1. softwarewithnick — `build-your-own-x` GitHub repo (neural network from scratch) — folded into AI & Intelligence above
