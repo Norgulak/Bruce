@@ -33,6 +33,7 @@ except ImportError:
     HUD_AVAILABLE = False
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 from bruce_secrets import ELEVENLABS_KEY, TAVILY_KEY
+DEBUG_MODE       = False  # flip to True to see raw Ollama request/response info in the console
 OLLAMA_URL       = "http://localhost:11434/api/generate"
 OLLAMA_MODEL     = "qwen2.5:7b"
 KOKORO_MODEL     = "D:\\BRUCE\\kokoro-v1.0.onnx"
@@ -322,13 +323,13 @@ class BruceBrain:
         try:
             r = requests.post(OLLAMA_URL, json={"model":OLLAMA_MODEL,"prompt":conv,
                               "stream":False,"options":{"temperature":0.7}}, timeout=90)
-            print(f"[DEBUG] Status: {r.status_code}")
+            if DEBUG_MODE: print(f"[DEBUG] Status: {r.status_code}")
             data = r.json()
-            print(f"[DEBUG] Keys: {list(data.keys())}")
+            if DEBUG_MODE: print(f"[DEBUG] Keys: {list(data.keys())}")
             reply = data.get("response", data.get("message", {}).get("content", "Something broke.")).strip()
-            print(f"[DEBUG] Reply: {reply[:50]}")
+            if DEBUG_MODE: print(f"[DEBUG] Reply: {reply[:50]}")
         except Exception as e:
-            print(f"[DEBUG] Exception: {type(e).__name__}: {e}")
+            if DEBUG_MODE: print(f"[DEBUG] Exception: {type(e).__name__}: {e}")
             reply = f"Something broke. Error: {type(e).__name__}: {e}"
         self.history.append({"role":"assistant","content":reply})
         return reply

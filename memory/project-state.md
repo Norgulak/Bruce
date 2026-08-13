@@ -36,5 +36,7 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 ## Known issues / pending fixes (carried over, not yet re-verified)
 - TTS delay (~5 seconds with Kokoro)
 - Monitor audio switch command not working
-- Debug lines still in CMD output — `bruce.py`'s `BruceBrain.ask()` still has `print(f"[DEBUG] ...")` calls that should probably be removed or gated behind a verbosity flag
 - `START_BRUCE.bat` is a reconstruction (see above) — worth testing thoroughly against expected old behavior, not just confirming it launches without error
+
+## Resolved this session
+- Debug print spam — `bruce.py`'s `BruceBrain.ask()` now gates its four `[DEBUG]` prints behind a `DEBUG_MODE` flag (default `False`) instead of always printing.

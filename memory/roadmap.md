@@ -39,7 +39,7 @@ Status markers: **[confirmed]** = decided and either done or actively planned. *
 ## Pending Fixes
 - TTS delay (~5 seconds with Kokoro)
 - Monitor audio switch command not working
-- Debug lines still in CMD output (`[DEBUG]` prints in `bruce.py`)
+- ~~Debug lines still in CMD output~~ **[DONE]** — gated behind a `DEBUG_MODE` flag in `bruce.py` (default `False`); flip it to `True` to see raw Ollama request/response info again if troubleshooting is needed.
 
 ## Reel 5 investigation outcome
 Tested `npx skills add` directly (2026-08-13). It works and installs real skill packages into a project-local `.claude/skills/` folder, but it targets 76 named coding agents by slug (claude-code, codex, cursor, windsurf, etc.) — Cowork is not among them. Coword's own skills live in a separate, read-only, Cowork-managed directory, so a project-local install here would never actually be read by this session. It *would* work if Bruce were ever developed via Claude Code CLI directly instead of Cowork — a real option, but a workflow change (terminal-based instead of chat-based), not just a "fix." Decided against installing Claude Code for this alone. Instead, pulled the actual content of the `frontend-design` skill by hand and translated it for Bruce's HUD — see `memory/frontend-design-notes.md`. Net effect: got the useful part of the reel without adopting a second tool.

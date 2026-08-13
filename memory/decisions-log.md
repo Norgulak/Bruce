@@ -2,6 +2,9 @@
 
 Chronological, most recent first. Each entry: what changed, why.
 
+## 2026-08-13 — Debug print spam cleaned up
+Added a `DEBUG_MODE = False` flag to `bruce.py`'s config block and wrapped the four `[DEBUG]` prints in `BruceBrain.ask()` behind it, instead of deleting them outright. Why: they were cluttering the console on every response, but they're genuinely useful if the Ollama connection breaks again — gating instead of deleting keeps that option available.
+
 ## 2026-08-13 — Reel 5 (Skills ecosystem) investigated, resolved without adopting a new tool
 Ran `npx skills add` for real to check whether it installs somewhere Cowork reads. Confirmed it doesn't — it targets 76 named coding agents (Claude Code CLI among them), not Cowork specifically, and writes to a project-local `.claude/skills/` folder that this session doesn't read from. Considered installing Claude Code CLI to make it work, but that's a workflow change (terminal-based dev instead of chat-based), not a small fix, so decided against it for now. Instead manually pulled the `frontend-design` skill's actual guidance and wrote it up for Bruce's HUD specifically in `memory/frontend-design-notes.md` — captured the useful content without the broken automation.
 
