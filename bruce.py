@@ -656,4 +656,4 @@ def main():
         print("\n[Bruce] Shutting down.")
         audio.close()
 if __name__ == "__main__":
-    main()
+    main()# test comment for CodeRabbit review 
