@@ -24,6 +24,8 @@ import json
 import time
 import psutil
 import logging
+import datetime
+import bruce_memory
 from elevenlabs.client import ElevenLabs
 logging.getLogger('websockets').setLevel(logging.CRITICAL)
 try:
@@ -34,6 +36,7 @@ except ImportError:
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 from bruce_secrets import ELEVENLABS_KEY, TAVILY_KEY
 DEBUG_MODE       = False  # flip to True to see raw Ollama request/response info in the console
+MEMORY_ENABLED   = True   # flip to False to disable persistent memory (bruce_memory.py) entirely
 OLLAMA_URL       = "http://localhost:11434/api/generate"
 OLLAMA_MODEL     = "qwen2.5:7b"
 KOKORO_MODEL     = "D:\\BRUCE\\kokoro-v1.0.onnx"
@@ -302,9 +305,17 @@ class Speaker:
         self.audio._play_bytes(ab, sr)
 # ── BRAIN ─────────────────────────────────────────────────────────────────────
 class BruceBrain:
-    def __init__(self): self.history = []
+    def __init__(self):
+        self.history = []
+        self.memory = bruce_memory.load_memory() if MEMORY_ENABLED else dict(bruce_memory.DEFAULT_MEMORY)
+        memory_block = bruce_memory.format_memory_for_prompt(self.memory) if MEMORY_ENABLED else ""
+        self.system_prompt = SYSTEM_PROMPT + memory_block
+        if MEMORY_ENABLED and memory_block:
+            print(f"[Bruce Memory] Loaded {len(self.memory['facts'])} facts, "
+                  f"{len(self.memory['preferences'])} preferences, "
+                  f"{len(self.memory['history_summaries'])} past session summaries.")
     def _query(self, prompt, system=None):
-        sys = system or SYSTEM_PROMPT
+        sys = system or self.system_prompt
         conv = f"<|im_start|>system\n{sys}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
         try:
             r = requests.post(OLLAMA_URL, json={"model":OLLAMA_MODEL,"prompt":conv,
@@ -315,7 +326,7 @@ class BruceBrain:
             return f"Error: {e}"
     def ask(self, text):
         self.history.append({"role":"user","content":text})
-        conv = f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
+        conv = f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
         for m in self.history[-10:]:
             role = "user" if m['role']=='user' else "assistant"
             conv += f"<|im_start|>{role}\n{m['content']}<|im_end|>\n"
@@ -355,6 +366,32 @@ Acknowledge the best points, dismiss the weak ones. Keep it concise."""
         self.history.append({"role":"user","content":f"[Council] {question}"})
         self.history.append({"role":"assistant","content":final})
         return final
+    def save_session_memory(self):
+        """Extract anything worth remembering from this session and persist it.
+        Called when conversation mode ends. Doesn't touch model weights - just
+        writes to bruce_memory.json so future runs start with this context."""
+        if not MEMORY_ENABLED or not self.history:
+            return
+        try:
+            extracted = bruce_memory.extract_from_conversation(self.history, self._query)
+            changed = False
+            for fact in extracted.get("facts", []):
+                if bruce_memory.add_fact(self.memory, fact):
+                    changed = True
+            for pref in extracted.get("preferences", []):
+                if bruce_memory.add_preference(self.memory, pref):
+                    changed = True
+            summary = extracted.get("summary", "")
+            if summary:
+                today = datetime.date.today().isoformat()
+                bruce_memory.add_history_summary(self.memory, today, summary)
+                changed = True
+            if changed:
+                bruce_memory.save_memory(self.memory)
+                print("[Bruce Memory] Session memory saved.")
+        except Exception as e:
+            # Memory extraction should never take down the rest of Bruce
+            print(f"[Bruce Memory] Skipped saving session memory due to error: {e}")
 # ── WEB SEARCH ───────────────────────────────────────────────────────────────
 def web_search(query: str, brain: 'BruceBrain') -> str:
     try:
@@ -500,6 +537,15 @@ def check_commands(text, speaker, audio, brain):
     if "credits do i have" in t:    return True, get_credits(), False
     if "mini overlay" in t or "compact mode" in t: return True, switch_to_mini(), False
     if "full hud" in t or "full overlay" in t:     return True, switch_to_full(), False
+    # Explicit memory command — fast path, doesn't wait for end-of-session extraction
+    if MEMORY_ENABLED:
+        for trigger in ["remember that ", "remember this, ", "remember this: ", "remember: "]:
+            if t.startswith(trigger):
+                fact = text[len(trigger):].strip()
+                if fact and bruce_memory.add_fact(brain.memory, fact):
+                    bruce_memory.save_memory(brain.memory)
+                    return True, "Noted. I'll remember that.", False
+                return True, "Already knew that one.", False
     # Web search
     is_search, query = is_search_query(text)
     if is_search and query:
@@ -553,6 +599,7 @@ def process_turn(raw_audio, transcriber, speaker, audio, brain):
         print("[Bruce] Conversation mode ended.")
         hud_status("idle")
         speaker.speak("Going quiet.")
+        brain.save_session_memory()
         return
     is_cmd, reply, is_council = check_commands(text, speaker, audio, brain)
     if not is_cmd:
@@ -655,6 +702,7 @@ def main():
                 hud_status("listening")
     except KeyboardInterrupt:
         print("\n[Bruce] Shutting down.")
+        brain.save_session_memory()
         audio.close()
 if __name__ == "__main__":
     main()

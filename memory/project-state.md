@@ -6,6 +6,8 @@ Last updated: 2026-08-13 (this session)
 | File | Purpose |
 |------|---------|
 | `bruce.py` | Main AI brain v1.9 |
+| `bruce_memory.py` | Bruce's persistent long-term memory module (facts/preferences/session summaries) — see decisions-log for design |
+| `bruce_memory.json` | The actual memory data — gitignored, personal info about Banmi, never commit |
 | `bruce_secrets.py` | ElevenLabs + Tavily API keys — gitignored, never commit |
 | `bruce_wake_1.py` | Vosk wake word listener |
 | `bruce_overlay_1_1.py` | HUD overlay launcher |
