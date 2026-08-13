@@ -2,11 +2,22 @@
 
 Status markers: **[confirmed]** = decided and either done or actively planned. **[proposed]** = surfaced from a reel or discussion, not yet locked in by Banmi.
 
-## AI & Intelligence
-- Smarter locally hosted AI — bigger Qwen model or Mistral **[confirmed, not started]**
-- Build Bruce's neural network using `github.com/codecrafters-io/build-your-own-x` as reference **[confirmed, not started]**
-- Try LiveKit for AI voice / streaming TTS to fix delay **[confirmed, not started]**
-- Persistent memory vault for Bruce himself (not just this Claude/Bruce project vault, but Bruce-the-assistant having his own long-term memory of Banmi) — inspired by reel 4 (alex2learn, "infinite memory") and reel 7 (raycfu, "second brain") **[proposed]**
+## AI & Intelligence — Feature Priority (set 2026-08-13, Banmi wants "important features" prioritized over process/fixes)
+
+**Phase 1 — build out Bruce's full component set:**
+1. Persistent memory for Bruce himself (not just this project vault — Bruce-the-assistant having his own long-term memory of Banmi: facts, preferences, history) — inspired by reel 4 (alex2learn) and reel 7 (raycfu), same pattern already proven in this vault. **[confirmed — top priority]**
+2. Smarter locally hosted model — bigger Qwen model or Mistral. Low effort relative to payoff. **[confirmed]**
+3. LiveKit / streaming TTS to fix the ~5s response delay. Also listed under Pending Fixes — same underlying problem. **[confirmed]**
+4. iPhone bridge, Discord, Steam notifications, daily schedule — genuinely valuable but the most complex; sequence after the above, not before. **[confirmed, lower sequence]**
+
+**Phase 2 — ambitious, deliberately deferred, not simultaneous with Phase 1:**
+- Periodic local fine-tuning (LoRA-style) on Bruce's model, run offline on a schedule (e.g. weekly), trained on curated logs pulled from Bruce's own memory vault once that exists. This is real "active learning and development" rather than just memory lookup — but it depends on Phase 1's memory system existing first to supply good training data, and it's a project of its own (not something to build in parallel with everything else). Explicitly NOT live/real-time weight updates during conversation — that's a genuinely unsolved problem (catastrophic forgetting, heavier compute needs) and isn't being pursued. **[confirmed as phase 2, not started]**
+
+**Local-first direction (ongoing philosophy, not a blocking requirement):**
+- Banmi wants Bruce to run as close to fully local as possible, but wants to finish building out Bruce's full feature set first, then deliberately move existing cloud-dependent pieces toward local alternatives afterward — not mid-build.
+- Current local/cloud status: Ollama/Qwen (brain) — local. Whisper (speech-to-text) — local. Kokoro (one of three voice options) — local. ElevenLabs and Edge-TTS (the other two voice options) — both cloud, despite "Edge" sounding local. Tavily (web search) — cloud.
+- Later migration is genuinely easy for voice — Kokoro already exists and is already integrated, so dropping ElevenLabs/Edge-TTS later is low-cost.
+- Web search is a real exception: "search the web" inherently requires reaching the actual internet somewhere, so it can never be fully offline. "Local" there would mean not depending on Tavily specifically (e.g. self-hosting something like SearXNG) rather than zero network access.
 - Sharpen Bruce's `SYSTEM_PROMPT` so his tendency to push back / not blindly agree is more explicit, matching how Claude is now expected to operate in this project **[proposed, to-do — Banmi asked for this to be tracked, not yet implemented]**
 
 ## HUD & UI
@@ -45,7 +56,7 @@ Status markers: **[confirmed]** = decided and either done or actively planned. *
 Tested `npx skills add` directly (2026-08-13). It works and installs real skill packages into a project-local `.claude/skills/` folder, but it targets 76 named coding agents by slug (claude-code, codex, cursor, windsurf, etc.) — Cowork is not among them. Coword's own skills live in a separate, read-only, Cowork-managed directory, so a project-local install here would never actually be read by this session. It *would* work if Bruce were ever developed via Claude Code CLI directly instead of Cowork — a real option, but a workflow change (terminal-based instead of chat-based), not just a "fix." Decided against installing Claude Code for this alone. Instead, pulled the actual content of the `frontend-design` skill by hand and translated it for Bruce's HUD — see `memory/frontend-design-notes.md`. Net effect: got the useful part of the reel without adopting a second tool.
 
 ## Instagram Reels Decoded So Far
-1. softwarewithnick — `build-your-own-x` GitHub repo (neural network from scratch) — folded into AI & Intelligence above
+1. softwarewithnick — `build-your-own-x` GitHub repo (neural network from scratch) — originally listed as its own item ("build Bruce's neural network as a learning exercise"); superseded by the Phase 2 fine-tuning plan above, which is the real version of "Bruce has a neural network that learns," rather than a from-scratch numpy tutorial project
 2. designlab.anirudh — portfolio build, reactbits.dev — folded into HUD & UI above
 3. carterperez.dev — cybersecurity dashboard/HSM emulator/canary tokens — **not relevant to Bruce, intentionally left off the roadmap**
 4. alex2learn — "infinite memory" Obsidian vault concept — folded into AI & Intelligence above
