@@ -193,6 +193,33 @@ class AudioManager:
         bruce_speaking = False
     def play_pcm(self, audio_data, sample_rate=24000):
         self._play_bytes((audio_data*32767).astype(np.int16).tobytes(), sample_rate)
+    def play_pcm_stream(self, chunk_iter, sample_rate=24000, on_start=None):
+        """Like play_pcm, but takes an iterable of audio chunks and starts
+        playing each one as it arrives instead of waiting for the entire
+        response to finish generating first. on_start(), if given, fires
+        exactly when the first chunk is about to play - use it to flip
+        HUD/status indicators at the moment sound actually begins, not
+        whenever generation started (which can be several seconds earlier)."""
+        global bruce_speaking, interrupt_flag
+        stream = None
+        try:
+            for chunk in chunk_iter:
+                if interrupt_flag: break
+                if stream is None:
+                    stream = self.pa.open(format=pyaudio.paInt16, channels=1, rate=sample_rate,
+                                           output=True, output_device_index=self.output_device)
+                    bruce_speaking = True
+                    if on_start: on_start()
+                data = (chunk*32767).astype(np.int16).tobytes()
+                offset = 0
+                while offset < len(data):
+                    if interrupt_flag: break
+                    end = min(offset+4096, len(data))
+                    stream.write(data[offset:end]); offset = end
+        finally:
+            if stream is not None:
+                stream.stop_stream(); stream.close()
+            bruce_speaking = False
     def record_while_held(self):
         global interrupt_flag
         interrupt_flag = False
@@ -294,20 +321,36 @@ class Speaker:
             return f"Switched to {m[mode]}."
         return "Unknown voice."
     def speak(self, text):
+        if self.mode == "pockettts":
+            # Pocket TTS manages its own hud_status timing via play_pcm_stream's
+            # on_start callback - it fires when the first chunk actually starts
+            # playing, not when generation begins (generation alone can take
+            # several seconds, and setting "speaking" that early made the HUD
+            # visibly lie about what Bruce was actually doing).
+            self._pocket(text)
+            hud_status("idle")
+            return
         hud_status("speaking")
         if self.mode == "elevenlabs": self._eleven(text)
         elif self.mode == "edge": self._edge(text)
-        elif self.mode == "pockettts": self._pocket(text)
         else: self._kokoro(text)
         hud_status("idle")
     def _kokoro(self, text):
         s, sr = self.kokoro.create(text, voice=KOKORO_VOICE, speed=0.95, lang="en-us")
         self.audio.play_pcm(s, sr)
     def _pocket(self, text):
-        # generate_audio() returns a 1D torch tensor of PCM data in [-1, 1],
-        # same convention as Kokoro's output - play_pcm() handles both identically.
-        audio = self.pocket_model.generate_audio(self.pocket_voice_state, text)
-        self.audio.play_pcm(audio.numpy(), self.pocket_model.sample_rate)
+        # Uses generate_audio_stream() (yields chunks as they're generated),
+        # NOT generate_audio() (blocks until the entire response is done).
+        # The whole point of Pocket TTS is ~200ms-to-first-chunk latency -
+        # the non-streaming call throws that away and waits for full
+        # generation before playing anything, which is what caused the
+        # 5-10s delay in the first version of this integration.
+        chunks = (c.numpy() for c in self.pocket_model.generate_audio_stream(
+            self.pocket_voice_state, text))
+        self.audio.play_pcm_stream(
+            chunks, self.pocket_model.sample_rate,
+            on_start=lambda: hud_status("speaking")
+        )
     def _edge(self, text):
         async def _collect():
             c = edge_tts.Communicate(text, EDGE_VOICE)
