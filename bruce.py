@@ -472,7 +472,7 @@ def classify_search_intent(text: str, query_fn) -> tuple:
     t = text.lower()
     hints = ["search", "look up", "find out", "find me", "browse", "internet",
               " web", "news", "latest", "google",
-              "happening with", "going on with", "check what", "check if",
+              "happening", "going on", "check what", "check if",
               "current", "up to date", "up-to-date"]
     if not any(h in t for h in hints):
         return False, ""
