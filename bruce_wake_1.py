@@ -35,12 +35,19 @@ model = Model(model_name="vosk-model-small-en-us-0.15")
 rec = KaldiRecognizer(model, SAMPLE_RATE)
 print("[Wake] Ready.")
 
-def signal_bruce():
-    try:
-        requests.post(BRUCE_URL, timeout=2)
-        print("[Wake] Bruce activated!")
-    except Exception:
-        print("[Wake] Could not reach Bruce.")
+def signal_bruce(retries=6, delay=1.5):
+    # Bruce can still be mid-import (torch/Whisper/Kokoro are slow to load,
+    # especially on a cold start) even after our fixed boot wait above.
+    # Retry for a few seconds instead of dropping the wake word on the floor.
+    for attempt in range(retries):
+        try:
+            requests.post(BRUCE_URL, timeout=2)
+            print("[Wake] Bruce activated!")
+            return
+        except Exception:
+            if attempt < retries - 1:
+                time.sleep(delay)
+    print("[Wake] Could not reach Bruce.")
 
 def main():
     print("""

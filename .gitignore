@@ -1,5 +1,6 @@
-kokoro-v1.0.onnx 
-voices-v1.0.bin 
-*.pyc 
-__pycache__/ 
-bruce_secrets.py 
+kokoro-v1.0.onnx
+voices-v1.0.bin
+*.pyc
+__pycache__/
+bruce_secrets.py
+bruce_memory.json
