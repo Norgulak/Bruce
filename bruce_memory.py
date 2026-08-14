@@ -171,9 +171,15 @@ def extract_from_conversation(conversation_history, query_fn):
     if not conversation_history:
         return {"facts": [], "preferences": [], "summary": ""}
 
+    # Was capped at the last 20 messages, which silently dropped anything said
+    # earlier in a longer session before it ever reached extraction (the
+    # checkpoint only advances on save, so a long session could lose facts
+    # stated near the start). Raised to a much more generous cap - still
+    # bounded so an extreme outlier session doesn't blow past the model's
+    # context window, but 20 was too tight for normal use.
     convo_text = "\n".join(
         f"{'Banmi' if m['role'] == 'user' else 'Bruce'}: {m['content']}"
-        for m in conversation_history[-20:]
+        for m in conversation_history[-200:]
     )
 
     extraction_prompt = f"""Below is a recent conversation between Banmi and Bruce (his AI wingman).
@@ -183,15 +189,19 @@ def extract_from_conversation(conversation_history, query_fn):
 Extract anything genuinely worth remembering long-term. Respond in EXACTLY this format, nothing else:
 
 FACTS:
-- (one durable fact about Banmi worth remembering, or write "none")
+- (a durable fact about Banmi worth remembering)
+- (list EVERY distinct fact mentioned, one per line - do not stop at just one)
+(write a single line "- none" if there is nothing worth remembering)
 
 PREFERENCES:
-- (one preference Banmi expressed, or write "none")
+- (a preference Banmi expressed)
+- (list EVERY distinct preference mentioned, one per line - do not stop at just one)
+(write a single line "- none" if there is nothing worth remembering)
 
 SUMMARY:
 (one sentence summarizing what this conversation was about)
 
-Don't invent anything that wasn't actually said. If nothing is worth remembering, write "none" under FACTS and PREFERENCES."""
+List ALL facts and ALL preferences actually mentioned, not just the first or most obvious one - do not artificially limit yourself to one line per section. Don't invent anything that wasn't actually said. If nothing is worth remembering, write "- none" under FACTS and PREFERENCES."""
 
     try:
         raw = query_fn(
