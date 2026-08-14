@@ -5,7 +5,7 @@ Status markers: **[confirmed]** = decided and either done or actively planned. *
 ## AI & Intelligence — Feature Priority (set 2026-08-13, Banmi wants "important features" prioritized over process/fixes)
 
 **Phase 1 — build out Bruce's full component set:**
-1. Persistent memory for Bruce himself (not just this project vault — Bruce-the-assistant having his own long-term memory of Banmi: facts, preferences, history) — inspired by reel 4 (alex2learn) and reel 7 (raycfu), same pattern already proven in this vault. **[built 2026-08-13, on branch `bruce-persistent-memory`, pending real hardware test + PR review before merge to main — see decisions-log]**
+1. Persistent memory for Bruce himself (not just this project vault — Bruce-the-assistant having his own long-term memory of Banmi: facts, preferences, history) — inspired by reel 4 (alex2learn) and reel 7 (raycfu), same pattern already proven in this vault. **[DONE 2026-08-14 — merged to `main`. Both explicit ("remember that X") and passive (automatic extraction on session end) paths hardware-verified across a full Bruce restart. See decisions-log for the full build/review/fix history.]**
 2. Smarter locally hosted model — bigger Qwen model or Mistral. Low effort relative to payoff. **[confirmed]**
 3. LiveKit / streaming TTS to fix the ~5s response delay. Also listed under Pending Fixes — same underlying problem. **[confirmed]**
 4. iPhone bridge, Discord, Steam notifications, daily schedule — genuinely valuable but the most complex; sequence after the above, not before. **[confirmed, lower sequence]**
