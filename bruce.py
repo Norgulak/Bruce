@@ -307,7 +307,8 @@ class Speaker:
 class BruceBrain:
     def __init__(self):
         self.history = []
-        self.memory = bruce_memory.load_memory() if MEMORY_ENABLED else dict(bruce_memory.DEFAULT_MEMORY)
+        self.memory = bruce_memory.load_memory() if MEMORY_ENABLED else bruce_memory.fresh_memory()
+        self._memory_checkpoint = 0  # index into self.history already extracted+saved
         memory_block = bruce_memory.format_memory_for_prompt(self.memory) if MEMORY_ENABLED else ""
         self.system_prompt = SYSTEM_PROMPT + memory_block
         if MEMORY_ENABLED and memory_block:
@@ -367,13 +368,19 @@ Acknowledge the best points, dismiss the weak ones. Keep it concise."""
         self.history.append({"role":"assistant","content":final})
         return final
     def save_session_memory(self):
-        """Extract anything worth remembering from this session and persist it.
-        Called when conversation mode ends. Doesn't touch model weights - just
-        writes to bruce_memory.json so future runs start with this context."""
-        if not MEMORY_ENABLED or not self.history:
+        """Extract anything worth remembering from the NOT-YET-SAVED part of this
+        session and persist it. Safe to call multiple times (e.g. once on "Bruce
+        offline" and again on Ctrl+C shortly after) without creating duplicate
+        summaries, because it only ever looks at history since the last successful
+        save. Doesn't touch model weights - just writes to bruce_memory.json so
+        future runs start with this context."""
+        if not MEMORY_ENABLED:
+            return
+        unsaved = self.history[self._memory_checkpoint:]
+        if not unsaved:
             return
         try:
-            extracted = bruce_memory.extract_from_conversation(self.history, self._query)
+            extracted = bruce_memory.extract_from_conversation(unsaved, self._query)
             changed = False
             for fact in extracted.get("facts", []):
                 if bruce_memory.add_fact(self.memory, fact):
@@ -387,8 +394,11 @@ Acknowledge the best points, dismiss the weak ones. Keep it concise."""
                 bruce_memory.add_history_summary(self.memory, today, summary)
                 changed = True
             if changed:
-                bruce_memory.save_memory(self.memory)
-                print("[Bruce Memory] Session memory saved.")
+                if bruce_memory.save_memory(self.memory):
+                    self._memory_checkpoint = len(self.history)
+                    print("[Bruce Memory] Session memory saved.")
+                else:
+                    print("[Bruce Memory] Save failed - will retry this range next time instead of losing it.")
         except Exception as e:
             # Memory extraction should never take down the rest of Bruce
             print(f"[Bruce Memory] Skipped saving session memory due to error: {e}")
@@ -542,10 +552,13 @@ def check_commands(text, speaker, audio, brain):
         for trigger in ["remember that ", "remember this, ", "remember this: ", "remember: "]:
             if t.startswith(trigger):
                 fact = text[len(trigger):].strip()
-                if fact and bruce_memory.add_fact(brain.memory, fact):
-                    bruce_memory.save_memory(brain.memory)
+                if not fact:
+                    return True, "Remember what, exactly?", False
+                if not bruce_memory.add_fact(brain.memory, fact):
+                    return True, "Already knew that one.", False
+                if bruce_memory.save_memory(brain.memory):
                     return True, "Noted. I'll remember that.", False
-                return True, "Already knew that one.", False
+                return True, "Got that, but couldn't save it to disk - might not stick after a restart.", False
     # Web search
     is_search, query = is_search_query(text)
     if is_search and query:
