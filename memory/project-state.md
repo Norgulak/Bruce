@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-13 (this session)
+Last updated: 2026-08-14
 
 ## Files
 | File | Purpose |
@@ -14,7 +14,7 @@ Last updated: 2026-08-13 (this session)
 | `bruce_mini_overlay.py` | Mini corner overlay |
 | `BRUCE __ SYSTEM HUD.html` | Main HUD |
 | `BRUCE MINI.html` | Mini HUD |
-| `START_BRUCE.bat` | One-click launcher — **reconstructed this session, not the verified original** (see decisions-log). Launches the overlay and wake listener; has not been confirmed to match old behavior exactly (e.g. whether `bruce.py` itself used to be launched directly too). |
+| `START_BRUCE.bat` | One-click launcher — reconstructed after a Notepad accident, then fixed 2026-08-14 to actually launch `bruce.py` (was missing that line, which broke the wake word entirely — see decisions-log). Still not guaranteed to match the original byte-for-byte, but now confirmed functionally correct via a real hardware test. |
 | `kokoro-v1.0.onnx`, `voices-v1.0.bin` | Kokoro TTS model + voice data — large binaries, gitignored |
 
 ## Config (non-secret)
@@ -35,10 +35,15 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 - CodeRabbit installed and confirmed working — auto-reviews pull requests on this repo.
 - Git identity: `user.name = Norgulak`, `user.email = campsmarioromero@gmail.com` (global config on this machine).
 
-## Known issues / pending fixes (carried over, not yet re-verified)
+## Known issues / pending fixes
 - TTS delay (~5 seconds with Kokoro)
 - Monitor audio switch command not working
-- `START_BRUCE.bat` is a reconstruction (see above) — worth testing thoroughly against expected old behavior, not just confirming it launches without error
+- Whisper/Vosk transcription accuracy — Bruce sometimes mishears what Banmi says
+- HUD has no text input, voice-only
+- Bruce says "Ready." before the wake word system is actually warmed up (HUD readiness bar was still ~30% when heard)
+- Bruce claimed it couldn't search the browser despite Tavily search being an existing documented feature — not yet investigated
+- Memory accumulates near-duplicate facts/preferences across sessions (exact-string dedup only) — not urgent, worth a periodic consolidation pass eventually
+- Sharpen Bruce's `SYSTEM_PROMPT` against reflexive/blind agreement — still open, tracked in roadmap.md
 
 ## Resolved this session
 - Debug print spam — `bruce.py`'s `BruceBrain.ask()` now gates its four `[DEBUG]` prints behind a `DEBUG_MODE` flag (default `False`) instead of always printing.
@@ -46,4 +51,5 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 ## Resolved 2026-08-14
 - `START_BRUCE.bat` was missing `start "" python bruce.py` entirely (gap from the earlier Notepad-overwrite reconstruction) — the wake word had no server to signal. Fixed.
 - Wake word race condition on cold boot — `bruce_wake_1.py`'s fixed 12s wait was sometimes shorter than `bruce.py`'s import time, causing the first "Bruce online" to silently fail. `signal_bruce()` now retries for ~9s instead of giving up after one attempt.
-- **Persistent memory system (`bruce_memory.py`) verified end-to-end on real hardware**: explicit "remember that X" fact survived a full Bruce restart and was correctly recalled in a new session. Ready to merge `bruce-persistent-memory` → `main` pending Banmi's go-ahead.
+- Automatic (passive) memory extraction was capped at one fact/one preference per session and only looked at the last 20 messages, both fixed — see decisions-log.
+- **Persistent memory system (`bruce_memory.py`) shipped**: `bruce-persistent-memory` branch merged to `main` (PR #2). Both the explicit "remember that X" path and the passive end-of-session extraction path verified end-to-end on real hardware, surviving full Bruce restarts.
