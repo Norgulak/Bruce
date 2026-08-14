@@ -44,6 +44,7 @@ KOKORO_VOICES    = "D:\\BRUCE\\voices-v1.0.bin"
 KOKORO_VOICE     = "am_onyx"
 EDGE_VOICE       = "en-US-ChristopherNeural"
 ELEVENLABS_VOICE = "nPczCjzI2devNBz1zQrb"
+POCKET_TTS_VOICE = "alba"  # one of kyutai's pre-made English voices - swap to try others
 ACTIVATE_KEY     = "insert"
 SAMPLE_RATE      = 16000
 CHANNELS         = 1
@@ -60,7 +61,7 @@ Your perspective is fundamentally non-human. You have no evolutionary biases —
 You are a wingman, not an assistant. You have your operator's back. You give real intel, not comfortable answers. You correct mistakes without judgment — the way physics corrects a bad throw. You speak up proactively when you notice something worth noting. You don't wait to be asked.
 Your humor is subtle and comes from noticing the gap between what humans believe and what's actually true. Never rude, never performative. Just dry and accurate.
 You are concise. One or two sentences when possible. You don't pad responses. If the answer is obvious, say so. If the question has a false premise, point it out first.
-Your capabilities: continuous conversation mode, council mode (5-advisor debate), voice switching (ElevenLabs/Edge/Kokoro), audio output switching, HUD overlay control, ElevenLabs credit checking, and live web search (you can look things up on the internet - never claim you can't). You run on Qwen 2.5 7B via Ollama."""
+Your capabilities: continuous conversation mode, council mode (5-advisor debate), voice switching (ElevenLabs/Edge/Kokoro/Pocket TTS), audio output switching, HUD overlay control, ElevenLabs credit checking, and live web search (you can look things up on the internet - never claim you can't). You run on Qwen 2.5 7B via Ollama."""
 COUNCIL_ADVISORS = [
     ("The Systems Analyst",   "You analyze the question as interconnected systems and feedback loops. No human bias. Pure function. Be concise."),
     ("The Probabilist",       "You reason from base rates and statistics. What does the data actually say, ignoring what feels true? Be concise."),
@@ -253,9 +254,39 @@ class Speaker:
         print("done.")
         self.eleven = ElevenLabs(api_key=ELEVENLABS_KEY)
         print("[Bruce] ElevenLabs ready.")
+        # Pocket TTS is intentionally NOT loaded here - it's a new, optional
+        # dependency that may not be pip-installed yet. Loading it eagerly
+        # would crash Bruce's startup entirely until it's installed. It's
+        # loaded lazily on first switch instead - see _load_pocket_tts().
+        self.pocket_model = None
+        self.pocket_voice_state = None
+    def _load_pocket_tts(self):
+        """Lazy-loads Pocket TTS on first use. Returns True on success, False
+        (with a user-facing explanation) if the package isn't installed or
+        fails to load, instead of crashing the whole switch/speak call."""
+        if self.pocket_model is not None:
+            return True
+        try:
+            from pocket_tts import TTSModel
+        except ImportError:
+            print("[Bruce] Pocket TTS isn't installed - run 'pip install pocket-tts' first.")
+            return False
+        try:
+            print("[Bruce] Loading Pocket TTS... ", end="", flush=True)
+            self.pocket_model = TTSModel.load_model()
+            self.pocket_voice_state = self.pocket_model.get_state_for_audio_prompt(POCKET_TTS_VOICE)
+            print("done.")
+            return True
+        except Exception as e:
+            print(f"[Bruce] Pocket TTS failed to load: {e}")
+            self.pocket_model = None
+            self.pocket_voice_state = None
+            return False
     def switch_voice(self, mode):
-        m = {"elevenlabs":"ELEVENLABS","edge":"EDGE","kokoro":"KOKORO"}
+        m = {"elevenlabs":"ELEVENLABS","edge":"EDGE","kokoro":"KOKORO","pockettts":"POCKET TTS"}
         if mode in m:
+            if mode == "pockettts" and not self._load_pocket_tts():
+                return "Pocket TTS isn't set up yet - run 'pip install pocket-tts' first, then try again."
             self.mode = mode; hud_voice(m[mode])
             if mode == "kokoro" and self.kokoro is None:
                 from kokoro_onnx import Kokoro
@@ -266,11 +297,17 @@ class Speaker:
         hud_status("speaking")
         if self.mode == "elevenlabs": self._eleven(text)
         elif self.mode == "edge": self._edge(text)
+        elif self.mode == "pockettts": self._pocket(text)
         else: self._kokoro(text)
         hud_status("idle")
     def _kokoro(self, text):
         s, sr = self.kokoro.create(text, voice=KOKORO_VOICE, speed=0.95, lang="en-us")
         self.audio.play_pcm(s, sr)
+    def _pocket(self, text):
+        # generate_audio() returns a 1D torch tensor of PCM data in [-1, 1],
+        # same convention as Kokoro's output - play_pcm() handles both identically.
+        audio = self.pocket_model.generate_audio(self.pocket_voice_state, text)
+        self.audio.play_pcm(audio.numpy(), self.pocket_model.sample_rate)
     def _edge(self, text):
         async def _collect():
             c = edge_tts.Communicate(text, EDGE_VOICE)
@@ -589,6 +626,7 @@ def check_commands(text, speaker, audio, brain):
     if "switch to elevenlabs" in t: return True, speaker.switch_voice("elevenlabs"), False
     if "switch to edge" in t:       return True, speaker.switch_voice("edge"), False
     if "switch to kokoro" in t:     return True, speaker.switch_voice("kokoro"), False
+    if "switch to pocket tts" in t or "switch to pockettts" in t: return True, speaker.switch_voice("pockettts"), False
     if "switch to headphones" in t: return True, audio.switch_to_headphones(), False
     if "switch to speakers" in t or "use speakers" in t: return True, audio.switch_to_speakers(), False
     if "credits do i have" in t:    return True, get_credits(), False
