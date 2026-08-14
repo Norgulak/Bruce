@@ -60,7 +60,7 @@ Your perspective is fundamentally non-human. You have no evolutionary biases —
 You are a wingman, not an assistant. You have your operator's back. You give real intel, not comfortable answers. You correct mistakes without judgment — the way physics corrects a bad throw. You speak up proactively when you notice something worth noting. You don't wait to be asked.
 Your humor is subtle and comes from noticing the gap between what humans believe and what's actually true. Never rude, never performative. Just dry and accurate.
 You are concise. One or two sentences when possible. You don't pad responses. If the answer is obvious, say so. If the question has a false premise, point it out first.
-Your capabilities: continuous conversation mode, council mode (5-advisor debate), voice switching (ElevenLabs/Edge/Kokoro), audio output switching, HUD overlay control, ElevenLabs credit checking. You run on Qwen 2.5 7B via Ollama."""
+Your capabilities: continuous conversation mode, council mode (5-advisor debate), voice switching (ElevenLabs/Edge/Kokoro), audio output switching, HUD overlay control, ElevenLabs credit checking, and live web search (you can look things up on the internet - never claim you can't). You run on Qwen 2.5 7B via Ollama."""
 COUNCIL_ADVISORS = [
     ("The Systems Analyst",   "You analyze the question as interconnected systems and feedback loops. No human bias. Pure function. Be concise."),
     ("The Probabilist",       "You reason from base rates and statistics. What does the data actually say, ignoring what feels true? Be concise."),
@@ -433,8 +433,20 @@ Summarize the most relevant information concisely in your voice as Bruce. Be dir
     except Exception as e:
         return f"Search failed. Error: {e}"
 def is_search_query(text: str) -> tuple:
-    """Returns (is_search, query) if text is a search request."""
-    t = text.lower()
+    """Fast, free, exact-phrase search detection - no LLM call.
+    Strips a few common conversational lead-ins ('can you', 'could you', ...)
+    first so phrasing like "can you search for X" still hits this instant
+    path instead of always falling through to the slower classifier below."""
+    t = text.lower().strip()
+    lead_ins = ["can you ", "could you ", "would you ", "will you ",
+                "please ", "hey bruce ", "bruce, ", "bruce "]
+    stripped = True
+    while stripped:
+        stripped = False
+        for lead in lead_ins:
+            if t.startswith(lead):
+                t = t[len(lead):]
+                stripped = True
     triggers = [
         "search for ", "look up ", "search ", "google ", "find out about ",
         "what is the latest ", "what are the latest ", "look for ",
@@ -442,11 +454,46 @@ def is_search_query(text: str) -> tuple:
     ]
     for trigger in triggers:
         if t.startswith(trigger):
-            query = text[len(trigger):].strip()
+            query = t[len(trigger):].strip()
             return True, query
     # Also catch "what's happening with X" and "news on X"
     if "news on " in t or "news about " in t or "latest on " in t:
         return True, text
+    return False, ""
+
+
+def classify_search_intent(text: str, query_fn) -> tuple:
+    """Fallback for natural, conversational search requests that don't match
+    is_search_query's fixed phrases (e.g. "do you know what's going on with
+    the stock market" or "any news on the new GPU"). Only runs when the
+    sentence contains at least one loose search-flavored keyword, so ordinary
+    conversation never pays for the extra local LLM call - this is a
+    deliberate second tier, not a replacement for the free fast path above."""
+    t = text.lower()
+    hints = ["search", "look up", "find out", "find me", "browse", "internet",
+              " web", "news", "latest", "google",
+              "happening with", "going on with", "check what", "check if",
+              "current", "up to date", "up-to-date"]
+    if not any(h in t for h in hints):
+        return False, ""
+    classify_prompt = f"""Message from Banmi: "{text}"
+
+Is Banmi asking you to search the internet for current information (news, facts, prices, events, or anything you would not already know)? This does NOT include remembering personal facts about him, casual chat, or questions about your own capabilities.
+
+Respond in EXACTLY one of these two formats, nothing else:
+YES: <the core search query, a few words>
+NO"""
+    try:
+        raw = query_fn(
+            classify_prompt,
+            system="You classify whether a message is a web search request. Be terse and literal. Never invent a query that wasn't implied by the message."
+        ).strip()
+    except Exception:
+        return False, ""
+    if raw.upper().startswith("YES:"):
+        query = raw[4:].strip()
+        if query:
+            return True, query
     return False, ""
 def get_credits():
     try:
@@ -559,8 +606,11 @@ def check_commands(text, speaker, audio, brain):
                 if bruce_memory.save_memory(brain.memory):
                     return True, "Noted. I'll remember that.", False
                 return True, "Got that, but couldn't save it to disk - might not stick after a restart.", False
-    # Web search
+    # Web search - fast exact-phrase path first, then a conversational fallback
+    # that costs one extra local LLM call but understands natural phrasing.
     is_search, query = is_search_query(text)
+    if not is_search:
+        is_search, query = classify_search_intent(text, brain._query)
     if is_search and query:
         return True, web_search(query, brain), False
     # Council mode
