@@ -41,9 +41,10 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 - Whisper/Vosk transcription accuracy — Bruce sometimes mishears what Banmi says
 - HUD has no text input, voice-only
 - Bruce says "Ready." before the wake word system is actually warmed up (HUD readiness bar was still ~30% when heard)
-- Bruce claimed it couldn't search the browser despite Tavily search being an existing documented feature — not yet investigated
 - Memory accumulates near-duplicate facts/preferences across sessions (exact-string dedup only) — not urgent, worth a periodic consolidation pass eventually
 - Sharpen Bruce's `SYSTEM_PROMPT` against reflexive/blind agreement — still open, tracked in roadmap.md
+- Voice interrupt triggers on raw mic amplitude, not real speech — any loud noise interrupts Bruce, and recovery is slow enough to disrupt conversation
+- Search doesn't weigh source credibility or cite sources for news-type results — see roadmap.md "Search quality"
 
 ## Resolved this session
 - Debug print spam — `bruce.py`'s `BruceBrain.ask()` now gates its four `[DEBUG]` prints behind a `DEBUG_MODE` flag (default `False`) instead of always printing.
@@ -53,3 +54,5 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 - Wake word race condition on cold boot — `bruce_wake_1.py`'s fixed 12s wait was sometimes shorter than `bruce.py`'s import time, causing the first "Bruce online" to silently fail. `signal_bruce()` now retries for ~9s instead of giving up after one attempt.
 - Automatic (passive) memory extraction was capped at one fact/one preference per session and only looked at the last 20 messages, both fixed — see decisions-log.
 - **Persistent memory system (`bruce_memory.py`) shipped**: `bruce-persistent-memory` branch merged to `main` (PR #2). Both the explicit "remember that X" path and the passive end-of-session extraction path verified end-to-end on real hardware, surviving full Bruce restarts.
+- **Conversational web search shipped**: `bruce-conversational-search` branch merged to `main` (PR #3). Fixed `SYSTEM_PROMPT` never mentioning Bruce has web search, and `is_search_query()` only matching exact trigger phrases. Added lead-in stripping to the fast path plus `classify_search_intent()` as an LLM-based fallback for natural phrasing. Hardware-verified working by Banmi.
+- Found `kyutai-labs/pocket-tts` (verified real, 7.9k stars) as a strong candidate to replace Kokoro for the TTS-delay fix — see roadmap.md item 3. Not yet integrated.
