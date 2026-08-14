@@ -52,6 +52,18 @@ def load_memory():
             value = data.get(key, [])
             if not isinstance(value, list):
                 raise ValueError(f"field '{key}' should be a list, got {type(value).__name__}")
+            if key == "history_summaries":
+                for item in value:
+                    if not isinstance(item, dict):
+                        raise ValueError(
+                            f"history_summaries item should be an object, got {type(item).__name__}"
+                        )
+                    if not isinstance(item.get("date"), str) or not isinstance(item.get("summary"), str):
+                        raise ValueError("history_summaries item must have string 'date' and 'summary' fields")
+            else:
+                for item in value:
+                    if not isinstance(item, str):
+                        raise ValueError(f"field '{key}' should contain only strings, got {type(item).__name__}")
             result[key] = value
         return result
     except (json.JSONDecodeError, OSError, ValueError) as e:
