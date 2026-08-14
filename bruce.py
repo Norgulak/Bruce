@@ -470,8 +470,8 @@ def classify_search_intent(text: str, query_fn) -> tuple:
     conversation never pays for the extra local LLM call - this is a
     deliberate second tier, not a replacement for the free fast path above."""
     t = text.lower()
-    hints = ["search", "look up", "find out", "find me", "know", "information",
-              " info", "browse", "internet", " web", "news", "latest", "google",
+    hints = ["search", "look up", "find out", "find me", "browse", "internet",
+              " web", "news", "latest", "google",
               "happening with", "going on with", "check what", "check if",
               "current", "up to date", "up-to-date"]
     if not any(h in t for h in hints):
