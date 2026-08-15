@@ -44,6 +44,7 @@ KOKORO_VOICES    = "D:\\BRUCE\\voices-v1.0.bin"
 KOKORO_VOICE     = "am_onyx"
 EDGE_VOICE       = "en-US-ChristopherNeural"
 ELEVENLABS_VOICE = "nPczCjzI2devNBz1zQrb"
+POCKET_TTS_VOICE = "alba"  # one of kyutai's pre-made English voices - swap to try others
 ACTIVATE_KEY     = "insert"
 SAMPLE_RATE      = 16000
 CHANNELS         = 1
@@ -60,7 +61,7 @@ Your perspective is fundamentally non-human. You have no evolutionary biases —
 You are a wingman, not an assistant. You have your operator's back. You give real intel, not comfortable answers. You correct mistakes without judgment — the way physics corrects a bad throw. You speak up proactively when you notice something worth noting. You don't wait to be asked.
 Your humor is subtle and comes from noticing the gap between what humans believe and what's actually true. Never rude, never performative. Just dry and accurate.
 You are concise. One or two sentences when possible. You don't pad responses. If the answer is obvious, say so. If the question has a false premise, point it out first.
-Your capabilities: continuous conversation mode, council mode (5-advisor debate), voice switching (ElevenLabs/Edge/Kokoro), audio output switching, HUD overlay control, ElevenLabs credit checking, and live web search (you can look things up on the internet - never claim you can't). You run on Qwen 2.5 7B via Ollama."""
+Your capabilities: continuous conversation mode, council mode (5-advisor debate), voice switching (ElevenLabs/Edge/Kokoro/Pocket TTS), audio output switching, HUD overlay control, ElevenLabs credit checking, and live web search (you can look things up on the internet - never claim you can't). You run on Qwen 2.5 7B via Ollama."""
 COUNCIL_ADVISORS = [
     ("The Systems Analyst",   "You analyze the question as interconnected systems and feedback loops. No human bias. Pure function. Be concise."),
     ("The Probabilist",       "You reason from base rates and statistics. What does the data actually say, ignoring what feels true? Be concise."),
@@ -192,6 +193,33 @@ class AudioManager:
         bruce_speaking = False
     def play_pcm(self, audio_data, sample_rate=24000):
         self._play_bytes((audio_data*32767).astype(np.int16).tobytes(), sample_rate)
+    def play_pcm_stream(self, chunk_iter, sample_rate=24000, on_start=None):
+        """Like play_pcm, but takes an iterable of audio chunks and starts
+        playing each one as it arrives instead of waiting for the entire
+        response to finish generating first. on_start(), if given, fires
+        exactly when the first chunk is about to play - use it to flip
+        HUD/status indicators at the moment sound actually begins, not
+        whenever generation started (which can be several seconds earlier)."""
+        global bruce_speaking, interrupt_flag
+        stream = None
+        try:
+            for chunk in chunk_iter:
+                if interrupt_flag: break
+                if stream is None:
+                    stream = self.pa.open(format=pyaudio.paInt16, channels=1, rate=sample_rate,
+                                           output=True, output_device_index=self.output_device)
+                    bruce_speaking = True
+                    if on_start: on_start()
+                data = (chunk*32767).astype(np.int16).tobytes()
+                offset = 0
+                while offset < len(data):
+                    if interrupt_flag: break
+                    end = min(offset+4096, len(data))
+                    stream.write(data[offset:end]); offset = end
+        finally:
+            if stream is not None:
+                stream.stop_stream(); stream.close()
+            bruce_speaking = False
     def record_while_held(self):
         global interrupt_flag
         interrupt_flag = False
@@ -253,9 +281,45 @@ class Speaker:
         print("done.")
         self.eleven = ElevenLabs(api_key=ELEVENLABS_KEY)
         print("[Bruce] ElevenLabs ready.")
+        self.pocket_model = None
+        self.pocket_voice_state = None
+        # Pocket TTS is now the preferred default voice - Banmi confirmed it
+        # sounds best and, since the streaming fix, is fast too. Still not a
+        # hard requirement though: on a machine where 'pip install pocket-tts'
+        # hasn't been run yet (e.g. a fresh checkout), _load_pocket_tts()
+        # fails gracefully and Bruce falls back to Kokoro instead of crashing.
+        if self._load_pocket_tts():
+            self.mode = "pockettts"
+            hud_voice("POCKET TTS")
+        else:
+            print("[Bruce] Falling back to Kokoro as the default voice.")
+    def _load_pocket_tts(self):
+        """Lazy-loads Pocket TTS on first use. Returns True on success, False
+        (with a user-facing explanation) if the package isn't installed or
+        fails to load, instead of crashing the whole switch/speak call."""
+        if self.pocket_model is not None:
+            return True
+        try:
+            from pocket_tts import TTSModel
+        except ImportError:
+            print("[Bruce] Pocket TTS isn't installed - run 'pip install pocket-tts' first.")
+            return False
+        try:
+            print("[Bruce] Loading Pocket TTS... ", end="", flush=True)
+            self.pocket_model = TTSModel.load_model()
+            self.pocket_voice_state = self.pocket_model.get_state_for_audio_prompt(POCKET_TTS_VOICE)
+            print("done.")
+            return True
+        except Exception as e:
+            print(f"[Bruce] Pocket TTS failed to load: {e}")
+            self.pocket_model = None
+            self.pocket_voice_state = None
+            return False
     def switch_voice(self, mode):
-        m = {"elevenlabs":"ELEVENLABS","edge":"EDGE","kokoro":"KOKORO"}
+        m = {"elevenlabs":"ELEVENLABS","edge":"EDGE","kokoro":"KOKORO","pockettts":"POCKET TTS"}
         if mode in m:
+            if mode == "pockettts" and not self._load_pocket_tts():
+                return "Pocket TTS isn't set up yet - run 'pip install pocket-tts' first, then try again."
             self.mode = mode; hud_voice(m[mode])
             if mode == "kokoro" and self.kokoro is None:
                 from kokoro_onnx import Kokoro
@@ -263,6 +327,15 @@ class Speaker:
             return f"Switched to {m[mode]}."
         return "Unknown voice."
     def speak(self, text):
+        if self.mode == "pockettts":
+            # Pocket TTS manages its own hud_status timing via play_pcm_stream's
+            # on_start callback - it fires when the first chunk actually starts
+            # playing, not when generation begins (generation alone can take
+            # several seconds, and setting "speaking" that early made the HUD
+            # visibly lie about what Bruce was actually doing).
+            self._pocket(text)
+            hud_status("idle")
+            return
         hud_status("speaking")
         if self.mode == "elevenlabs": self._eleven(text)
         elif self.mode == "edge": self._edge(text)
@@ -271,6 +344,19 @@ class Speaker:
     def _kokoro(self, text):
         s, sr = self.kokoro.create(text, voice=KOKORO_VOICE, speed=0.95, lang="en-us")
         self.audio.play_pcm(s, sr)
+    def _pocket(self, text):
+        # Uses generate_audio_stream() (yields chunks as they're generated),
+        # NOT generate_audio() (blocks until the entire response is done).
+        # The whole point of Pocket TTS is ~200ms-to-first-chunk latency -
+        # the non-streaming call throws that away and waits for full
+        # generation before playing anything, which is what caused the
+        # 5-10s delay in the first version of this integration.
+        chunks = (c.numpy() for c in self.pocket_model.generate_audio_stream(
+            self.pocket_voice_state, text))
+        self.audio.play_pcm_stream(
+            chunks, self.pocket_model.sample_rate,
+            on_start=lambda: hud_status("speaking")
+        )
     def _edge(self, text):
         async def _collect():
             c = edge_tts.Communicate(text, EDGE_VOICE)
@@ -504,29 +590,43 @@ def get_credits():
         return f"Used {used:,} of {lim:,}. {lim-used:,} remaining."
     except Exception as e: return f"Error: {e}"
 # ── INTERRUPT ─────────────────────────────────────────────────────────────────
-def interrupt_listener():
-    global bruce_speaking, interrupt_flag
-    while True:
-        try:
-            keyboard.wait(ACTIVATE_KEY)
-            if bruce_speaking:
-                interrupt_flag = True
-                print("[Bruce] Interrupted!")
-                time.sleep(0.5)
-                interrupt_flag = False
-        except: pass
+# NOTE: there used to be a second interrupt_listener() thread here that also
+# called keyboard.wait(ACTIVATE_KEY) in its own loop. The main INSERT loop in
+# main() already handles "INSERT pressed while Bruce is speaking" on its own
+# (see the `if bruce_speaking: interrupt_flag = True` block there), so the two
+# were fully redundant. Having two threads both wait() on the same hotkey at
+# once isn't safe in the `keyboard` library - one thread's internal cleanup
+# would race the other's and throw an unhandled KeyError('insert'), crashing
+# the whole process. Removed 2026-08-14 after Banmi hit this crash on hardware
+# during interrupt testing. See decisions-log / roadmap for the full story.
 def voice_interrupt_listener():
     """Monitors mic while Bruce speaks — interrupts if user voice detected."""
     global bruce_speaking, interrupt_flag
     VOICE_THRESHOLD = 150
     CHUNKS_TO_CONFIRM = 3
-    
+
     while True:
-        if not bruce_speaking or not conversation_mode:
+        # Used to also require conversation_mode - meant voice interrupt only
+        # worked during ongoing wake-word conversation, never during a
+        # hold-INSERT single question (INSERT turns deliberately set
+        # conversation_mode False for their whole duration, reply included).
+        # Dropped 2026-08-14: Banmi tried to voice-interrupt an INSERT-driven
+        # reply and it silently did nothing - there's no good reason voice
+        # interrupt shouldn't work any time Bruce is talking.
+        if not bruce_speaking:
             time.sleep(0.05)
             continue
-        
-        # Open fresh stream each time Bruce starts speaking
+
+        # Open fresh stream each time Bruce starts speaking. This one loop
+        # runs for as long as bruce_speaking stays True, i.e. Bruce's whole
+        # reply - there used to be a second "monitor mic" block after this
+        # one that assumed this loop only covered the start of the reply.
+        # It didn't: it tried to reuse this block's `pa` object AFTER this
+        # block had already called pa.terminate() on it, which throws every
+        # time, silently (its except clause had no print). Net effect: once
+        # this first loop ended, voice interrupts for the rest of that
+        # utterance went nowhere. Removed 2026-08-14 - Banmi confirmed he
+        # could say "stop"/"enough" mid-reply and Bruce just kept talking.
         try:
             pa = pyaudio.PyAudio()
             stream = pa.open(format=pyaudio.paInt16, channels=1, rate=16000,
@@ -552,27 +652,6 @@ def voice_interrupt_listener():
             pa.terminate()
         except Exception as e:
             print(f"[Wake mic] Error: {e}")
-        time.sleep(0.3)  # wait for bruce_speaking to go False before next check
-        # Bruce is speaking — monitor mic
-        try:
-            stream = pa.open(format=pyaudio.paInt16, channels=1, rate=16000,
-                           input=True, frames_per_buffer=1024)
-            consecutive = 0
-            while bruce_speaking:
-                data = stream.read(1024, exception_on_overflow=False)
-                amp = np.abs(np.frombuffer(data, dtype=np.int16)).mean()
-                if amp > VOICE_THRESHOLD:
-                    consecutive += 1
-                    if consecutive >= CHUNKS_TO_CONFIRM:
-                        print("[Bruce] Voice interrupt detected!")
-                        interrupt_flag = True
-                        consecutive = 0
-                else:
-                    consecutive = 0
-            stream.stop_stream()
-            stream.close()
-        except Exception:
-            time.sleep(0.1)
 # ── OVERLAY ───────────────────────────────────────────────────────────────────
 def switch_to_mini():
     global mini_process
@@ -589,6 +668,7 @@ def check_commands(text, speaker, audio, brain):
     if "switch to elevenlabs" in t: return True, speaker.switch_voice("elevenlabs"), False
     if "switch to edge" in t:       return True, speaker.switch_voice("edge"), False
     if "switch to kokoro" in t:     return True, speaker.switch_voice("kokoro"), False
+    if "switch to pocket tts" in t or "switch to pockettts" in t: return True, speaker.switch_voice("pockettts"), False
     if "switch to headphones" in t: return True, audio.switch_to_headphones(), False
     if "switch to speakers" in t or "use speakers" in t: return True, audio.switch_to_speakers(), False
     if "credits do i have" in t:    return True, get_credits(), False
@@ -699,7 +779,6 @@ def main():
     time.sleep(0.5)
     print("[Bruce] HTTP server on http://localhost:8766")
     threading.Thread(target=stats_broadcaster, daemon=True).start()
-    threading.Thread(target=interrupt_listener, daemon=True).start()
     audio       = AudioManager()
     threading.Thread(target=voice_interrupt_listener, daemon=True).start()
     transcriber = Transcriber()
@@ -746,6 +825,7 @@ def main():
             keyboard.wait(ACTIVATE_KEY)
             if bruce_speaking:
                 interrupt_flag = True
+                print("[Bruce] Interrupted!")
                 time.sleep(0.3)
                 continue
             # Make sure INSERT is actually being held, not just a ghost trigger
