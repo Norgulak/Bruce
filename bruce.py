@@ -281,12 +281,18 @@ class Speaker:
         print("done.")
         self.eleven = ElevenLabs(api_key=ELEVENLABS_KEY)
         print("[Bruce] ElevenLabs ready.")
-        # Pocket TTS is intentionally NOT loaded here - it's a new, optional
-        # dependency that may not be pip-installed yet. Loading it eagerly
-        # would crash Bruce's startup entirely until it's installed. It's
-        # loaded lazily on first switch instead - see _load_pocket_tts().
         self.pocket_model = None
         self.pocket_voice_state = None
+        # Pocket TTS is now the preferred default voice - Banmi confirmed it
+        # sounds best and, since the streaming fix, is fast too. Still not a
+        # hard requirement though: on a machine where 'pip install pocket-tts'
+        # hasn't been run yet (e.g. a fresh checkout), _load_pocket_tts()
+        # fails gracefully and Bruce falls back to Kokoro instead of crashing.
+        if self._load_pocket_tts():
+            self.mode = "pockettts"
+            hud_voice("POCKET TTS")
+        else:
+            print("[Bruce] Falling back to Kokoro as the default voice.")
     def _load_pocket_tts(self):
         """Lazy-loads Pocket TTS on first use. Returns True on success, False
         (with a user-facing explanation) if the package isn't installed or
