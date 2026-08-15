@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Files
 | File | Purpose |
@@ -36,15 +36,15 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 - Git identity: `user.name = Norgulak`, `user.email = campsmarioromero@gmail.com` (global config on this machine).
 
 ## Known issues / pending fixes
-- TTS delay (~5 seconds with Kokoro)
 - Monitor audio switch command not working
-- Whisper/Vosk transcription accuracy — Bruce sometimes mishears what Banmi says
+- Whisper/Vosk transcription accuracy — Bruce sometimes mishears what Banmi says. Several real contributors found and fixed 2026-08-14 (interrupt crash, dead voice-interrupt paths, silence-bundling on repeated quick speech — see roadmap.md Pending Fixes); some residual mishearing may remain, not fully explained yet.
 - HUD has no text input, voice-only
 - Bruce says "Ready." before the wake word system is actually warmed up (HUD readiness bar was still ~30% when heard)
 - Memory accumulates near-duplicate facts/preferences across sessions (exact-string dedup only) — not urgent, worth a periodic consolidation pass eventually
 - Sharpen Bruce's `SYSTEM_PROMPT` against reflexive/blind agreement — still open, tracked in roadmap.md
-- Voice interrupt triggers on raw mic amplitude, not real speech — any loud noise interrupts Bruce, and recovery is slow enough to disrupt conversation
+- Voice interrupt triggers on raw mic amplitude, not real speech — any loud noise interrupts Bruce. The mechanism actually works reliably now (see Resolved below), this is just about it being too easily triggered by non-speech noise, not about it failing.
 - Search doesn't weigh source credibility or cite sources for news-type results — see roadmap.md "Search quality"
+- Post-interrupt audio may still be dropped at the very start of a new recording (the `record_until_silence()` mic-handoff gap) — needs retest now that the interrupt system itself is reliable; see roadmap.md Pending Fixes.
 
 ## Resolved this session
 - Debug print spam — `bruce.py`'s `BruceBrain.ask()` now gates its four `[DEBUG]` prints behind a `DEBUG_MODE` flag (default `False`) instead of always printing.
@@ -56,3 +56,9 @@ Live keys (ElevenLabs, Tavily) live in `bruce_secrets.py`, imported into `bruce.
 - **Persistent memory system (`bruce_memory.py`) shipped**: `bruce-persistent-memory` branch merged to `main` (PR #2). Both the explicit "remember that X" path and the passive end-of-session extraction path verified end-to-end on real hardware, surviving full Bruce restarts.
 - **Conversational web search shipped**: `bruce-conversational-search` branch merged to `main` (PR #3). Fixed `SYSTEM_PROMPT` never mentioning Bruce has web search, and `is_search_query()` only matching exact trigger phrases. Added lead-in stripping to the fast path plus `classify_search_intent()` as an LLM-based fallback for natural phrasing. Hardware-verified working by Banmi.
 - Found `kyutai-labs/pocket-tts` (verified real, 7.9k stars) as a strong candidate to replace Kokoro for the TTS-delay fix — see roadmap.md item 3. Not yet integrated.
+
+## Resolved 2026-08-15
+- **Pocket TTS shipped as Bruce's default voice**: `bruce-pocket-tts` branch merged to `main` (PR #4). Real streaming via `generate_audio_stream()` fixed the original 5-10s delay; falls back to Kokoro gracefully if `pocket-tts` isn't installed. TTS delay issue is now considered resolved.
+- **Interrupt system crash + two dead voice-interrupt code paths, fixed and hardware-verified**: bundled into the same PR #4. `bruce.py` had two threads both calling `keyboard.wait(ACTIVATE_KEY)` concurrently (a redundant `interrupt_listener()` thread plus the main INSERT loop) — colliding hotkey cleanup in the `keyboard` library threw an unhandled `KeyError('insert')` that crashed the entire process on interrupt, which looked like Bruce "freezing." Fixed by deleting the redundant thread. Separately, `voice_interrupt_listener()` had a dead second mic-monitoring block that reused an already-terminated `PyAudio` object (silent failure, no error printed) and was also gated behind `conversation_mode`, making voice interrupt silently impossible during INSERT-triggered replies. Both fixed. Confirmed via repeated hardware interrupt testing, both voice and keyboard.
+- Widened `bruce_wake_1.py`'s wake-word activation retry window from ~9s to ~18s — Pocket TTS's added load time was intermittently pushing boot past the old window.
+- **Conversational search hint-gate fix shipped**: `bruce-search-hint-fix` branch merged to `main` (PR #5). "going on with" broadened to "going on" / "happening" after Banmi's real-world test showed "going on in the stock market" didn't match.
