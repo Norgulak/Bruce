@@ -590,29 +590,43 @@ def get_credits():
         return f"Used {used:,} of {lim:,}. {lim-used:,} remaining."
     except Exception as e: return f"Error: {e}"
 # ── INTERRUPT ─────────────────────────────────────────────────────────────────
-def interrupt_listener():
-    global bruce_speaking, interrupt_flag
-    while True:
-        try:
-            keyboard.wait(ACTIVATE_KEY)
-            if bruce_speaking:
-                interrupt_flag = True
-                print("[Bruce] Interrupted!")
-                time.sleep(0.5)
-                interrupt_flag = False
-        except: pass
+# NOTE: there used to be a second interrupt_listener() thread here that also
+# called keyboard.wait(ACTIVATE_KEY) in its own loop. The main INSERT loop in
+# main() already handles "INSERT pressed while Bruce is speaking" on its own
+# (see the `if bruce_speaking: interrupt_flag = True` block there), so the two
+# were fully redundant. Having two threads both wait() on the same hotkey at
+# once isn't safe in the `keyboard` library - one thread's internal cleanup
+# would race the other's and throw an unhandled KeyError('insert'), crashing
+# the whole process. Removed 2026-08-14 after Banmi hit this crash on hardware
+# during interrupt testing. See decisions-log / roadmap for the full story.
 def voice_interrupt_listener():
     """Monitors mic while Bruce speaks — interrupts if user voice detected."""
     global bruce_speaking, interrupt_flag
     VOICE_THRESHOLD = 150
     CHUNKS_TO_CONFIRM = 3
-    
+
     while True:
-        if not bruce_speaking or not conversation_mode:
+        # Used to also require conversation_mode - meant voice interrupt only
+        # worked during ongoing wake-word conversation, never during a
+        # hold-INSERT single question (INSERT turns deliberately set
+        # conversation_mode False for their whole duration, reply included).
+        # Dropped 2026-08-14: Banmi tried to voice-interrupt an INSERT-driven
+        # reply and it silently did nothing - there's no good reason voice
+        # interrupt shouldn't work any time Bruce is talking.
+        if not bruce_speaking:
             time.sleep(0.05)
             continue
-        
-        # Open fresh stream each time Bruce starts speaking
+
+        # Open fresh stream each time Bruce starts speaking. This one loop
+        # runs for as long as bruce_speaking stays True, i.e. Bruce's whole
+        # reply - there used to be a second "monitor mic" block after this
+        # one that assumed this loop only covered the start of the reply.
+        # It didn't: it tried to reuse this block's `pa` object AFTER this
+        # block had already called pa.terminate() on it, which throws every
+        # time, silently (its except clause had no print). Net effect: once
+        # this first loop ended, voice interrupts for the rest of that
+        # utterance went nowhere. Removed 2026-08-14 - Banmi confirmed he
+        # could say "stop"/"enough" mid-reply and Bruce just kept talking.
         try:
             pa = pyaudio.PyAudio()
             stream = pa.open(format=pyaudio.paInt16, channels=1, rate=16000,
@@ -638,27 +652,6 @@ def voice_interrupt_listener():
             pa.terminate()
         except Exception as e:
             print(f"[Wake mic] Error: {e}")
-        time.sleep(0.3)  # wait for bruce_speaking to go False before next check
-        # Bruce is speaking — monitor mic
-        try:
-            stream = pa.open(format=pyaudio.paInt16, channels=1, rate=16000,
-                           input=True, frames_per_buffer=1024)
-            consecutive = 0
-            while bruce_speaking:
-                data = stream.read(1024, exception_on_overflow=False)
-                amp = np.abs(np.frombuffer(data, dtype=np.int16)).mean()
-                if amp > VOICE_THRESHOLD:
-                    consecutive += 1
-                    if consecutive >= CHUNKS_TO_CONFIRM:
-                        print("[Bruce] Voice interrupt detected!")
-                        interrupt_flag = True
-                        consecutive = 0
-                else:
-                    consecutive = 0
-            stream.stop_stream()
-            stream.close()
-        except Exception:
-            time.sleep(0.1)
 # ── OVERLAY ───────────────────────────────────────────────────────────────────
 def switch_to_mini():
     global mini_process
@@ -786,7 +779,6 @@ def main():
     time.sleep(0.5)
     print("[Bruce] HTTP server on http://localhost:8766")
     threading.Thread(target=stats_broadcaster, daemon=True).start()
-    threading.Thread(target=interrupt_listener, daemon=True).start()
     audio       = AudioManager()
     threading.Thread(target=voice_interrupt_listener, daemon=True).start()
     transcriber = Transcriber()
@@ -833,6 +825,7 @@ def main():
             keyboard.wait(ACTIVATE_KEY)
             if bruce_speaking:
                 interrupt_flag = True
+                print("[Bruce] Interrupted!")
                 time.sleep(0.3)
                 continue
             # Make sure INSERT is actually being held, not just a ghost trigger

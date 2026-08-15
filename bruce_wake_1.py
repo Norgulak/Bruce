@@ -35,10 +35,14 @@ model = Model(model_name="vosk-model-small-en-us-0.15")
 rec = KaldiRecognizer(model, SAMPLE_RATE)
 print("[Wake] Ready.")
 
-def signal_bruce(retries=6, delay=1.5):
-    # Bruce can still be mid-import (torch/Whisper/Kokoro are slow to load,
-    # especially on a cold start) even after our fixed boot wait above.
-    # Retry for a few seconds instead of dropping the wake word on the floor.
+def signal_bruce(retries=12, delay=1.5):
+    # Bruce can still be mid-import (torch/Whisper/Kokoro/Pocket TTS are slow
+    # to load, especially on a cold start) even after our fixed boot wait
+    # above. Retry for a while instead of dropping the wake word on the
+    # floor. Widened from 6 retries (~9s) to 12 (~18s) on 2026-08-14 after
+    # adding Pocket TTS to the boot sequence pushed real-world boot time past
+    # the old window - Banmi hit "Could not reach Bruce" plus a burst of late
+    # retries landing all at once after Bruce finally came up.
     for attempt in range(retries):
         try:
             requests.post(BRUCE_URL, timeout=2)
